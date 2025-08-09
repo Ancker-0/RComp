@@ -18,11 +18,22 @@ export class Lexer {
         const tokens: Token[] = [];
         for (this.skipWhite(); !this.isEOF(); this.skipWhite()) {
             const token = this.nextToken();
-            this.pos += token.raw.length
             tokens.push(token);
+            this.movePointer(token.raw.length)
         }
         // tokens.push({ type: TokenType.EOF, location: this.currentLocation() });
         return tokens;
+    }
+
+    private movePointer(len: number) {
+        for (let i = 0; i < len; ++i) {
+            if (this.src[this.pos + i] == '\n') {
+                this.col = 1
+                ++this.line
+            } else
+                ++this.col
+        }
+        this.pos += len
     }
 
     private scanIdentifier(): NormalToken | null {
@@ -103,7 +114,7 @@ export class Lexer {
             .reduce((pv, v) => pv ? (v && v.raw.length > pv.raw.length ? v : pv) : v)
         const location: Location = { line: this.line, col: this.col }
         if (!result) {
-            throw new Error(`Unexpected error Zei3o at ${this.line, this.col, this.pos}`);
+            throw new Error(`Unexpected error Zei3o at line ${this.line}, ${this.col}, ${this.pos}`);
             // if (!this.isEOF())
             //     throw new Error("Unexpected error Zei3o");
             // return { type: TokenType.EOF, location }
