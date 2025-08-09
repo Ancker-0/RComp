@@ -1,8 +1,17 @@
 {
-    "name": "RComp",
-    "main": "build/index.js",
-    "scripts": {
-        "build": "tsc",
-        "start": "node build/index.js"
-    }
+  "name": "rcomp",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "lint": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prettier": "^3.6.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
 }

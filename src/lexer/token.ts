@@ -1,29 +1,4 @@
-export const KEYWORDS_STRONG = [
-    "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn",
-    "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut",
-    "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true",
-    "type", "unsafe", "use", "where", "while", "async", "await", "dyn",
-] as const
-
-export const KEYWORDS_RESERVED = [
-    "abstract", "become", "box", "do", "final", "macro", "override", "priv", "typeof", "unsized",
-    "virtual", "yield", "try", "gen",
-] as const
-
-export const KEYWORDS_WEAK = [
-    "'static", "macro_rules", "raw", "safe", "union",
-] as const
-
-// The order matters! Longer operators should be put before shorter ones.
-export const OPERATORS = [
-    "<<=", "...", "..=", ">>=", "->", "<-", "=>", "::", "..", "<<",
-    ">>", "+=", "-=", "*=", "/=", "%=", "^=", "&=", "|=", "||",
-    "&&", "<=", "==", "!=", ">=", "=", "<", ">", "!", "~",
-    "+", "-", "*", "/", "%", "^", "&", "|", "@", ".",
-    "#", "$", "_",
-    // ",", ";", ":", "?",
-    // "{", "}", "[", "]", "(", ")",
-] as const;
+import { KEYWORDS_STRONG, OPERATORS } from "./const";
 
 export enum TokenType {
     Identifier,
@@ -80,4 +55,4 @@ type IntegerLiteralToken = {
 
 export type TokenSpecific = NormalToken | KeywordToken | IntegerLiteralToken | OperatorToken
 export type Token = TokenCommon & TokenSpecific
-export { NormalToken, KeywordToken, OperatorToken, IntegerLiteralToken }
+export type { NormalToken, KeywordToken, OperatorToken, IntegerLiteralToken }
