@@ -80,6 +80,7 @@ type IntegerLiteralToken = {
     suf: string
 }
 
+export type TokenGeneric<T> = T & TokenCommon
 export type TokenSpecific = NormalToken | KeywordToken | IntegerLiteralToken | OperatorToken
 export type Token = TokenCommon & TokenSpecific
 export { NormalToken, KeywordToken, OperatorToken, IntegerLiteralToken }

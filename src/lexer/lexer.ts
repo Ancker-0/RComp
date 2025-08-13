@@ -1,8 +1,9 @@
 import { Token, TokenType, Location, Keyword, KEYWORDS_STRONG, NormalToken, KeywordToken, IntegerLiteralToken, OperatorToken, OPERATORS, TokenSpecific } from "./token"
 import { TokenType as TT } from "./token"
 
-// TODO: parse comments
+// TODO: parse comments, string/float literal, shebang removal, etc.
 // TODO: handle tuple index. See https://doc.rust-lang.org/reference/tokens.html#railroad-TUPLE_INDEX
+// TODO: don't use .slice for efficiency
 
 export class Lexer {
     private src: string
