@@ -2,6 +2,8 @@ import { tokenize } from "./lexer/index";
 import { TokenType } from "./lexer/token"
 import util from 'util'
 import { block } from "./parser/parser";
+import { maybe, seq } from "./parser/parsec";
+import { id, keyword } from "./parser/putil";
 
 const sampleSrc = `fn main() {
     let numbers: [i32; 3] = [10, 20, 30];
@@ -32,9 +34,15 @@ async function readStdinAll(): Promise<string> {
 
     const tokens = tokenize(src)
 
-    for (const token of tokens) {
-        console.log(`${TokenType[token.type]} ${util.inspect(token.raw)}`)
+    // for (const token of tokens) {
+    //     console.log(`${TokenType[token.type]} ${util.inspect(token.raw)}`)
+    // }
+
+    const log = (...args: any[]) => {
+        const inspected = args.map(a => util.inspect(a, { depth: null, colors: true }))
+        console.log(...inspected)
     }
 
-    console.log(block({ token: tokens, start: 0 }))
+    log(block({ token: tokens, start: 0 }))
+    // console.log(maybe(seq(keyword("let"), maybe(keyword("if")), keyword("else")))({ token: tokens, start: 0 }))
 })()

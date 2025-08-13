@@ -32,12 +32,12 @@ export enum TokenType {
     Keyword,
     Operator,
 
-    LeftParen,
-    RightParen,
-    LeftBracket,
-    RightBracket,
-    LeftBrace,
-    RightBrace,
+    LeftParen,     // '('
+    RightParen,    // ')'
+    LeftBracket,   // '['
+    RightBracket,  // ']'
+    LeftBrace,     // '{'
+    RightBrace,    // '}'
 
     Comma,
     Colon,
