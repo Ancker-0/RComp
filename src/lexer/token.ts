@@ -20,7 +20,8 @@ export const OPERATORS = [
     ">>", "+=", "-=", "*=", "/=", "%=", "^=", "&=", "|=", "||",
     "&&", "<=", "==", "!=", ">=", "=", "<", ">", "!", "~",
     "+", "-", "*", "/", "%", "^", "&", "|", "@", ".",
-    "#", "$", "_",
+    "#", "$",
+    // "_",
     // ",", ";", ":", "?",
     // "{", "}", "[", "]", "(", ")",
 ] as const;
@@ -76,6 +77,7 @@ type OperatorToken = {
 type IntegerLiteralToken = {
     type: TokenType.IntegerLiteral
     raw: string
+    suf: string
 }
 
 export type TokenSpecific = NormalToken | KeywordToken | IntegerLiteralToken | OperatorToken

@@ -37,7 +37,8 @@ export class Lexer {
     }
 
     private scanIdentifier(): NormalToken | null {
-        const reg = /^[a-zA-Z][a-zA-Z0-9_]*/
+        // const reg = /^[a-zA-Z][a-zA-Z0-9_]*|^_/
+        const reg = /^[_a-zA-Z][a-zA-Z0-9_]*|^_/  // if allow identifier to start with '_'
         const match = reg.exec(this.src.slice(this.pos))
         return match && {
             type: TokenType.Identifier,
@@ -90,7 +91,7 @@ export class Lexer {
     private scanIntegerLiteral(): IntegerLiteralToken | null {
         const decReg = /^[0-9][0-9_]*/
         const hexReg = /^0x[0-9a-fA-F_]*[0-9a-fA-F][0-9a-fA-F_]*/
-        const octReg = /^0x[0-7_]*[0-7][0-7_]*/
+        const octReg = /^0o[0-7_]*[0-7][0-7_]*/
         const binReg = /^0b[01_]*[01][01_]*/
         const matchLiteral = (reg: RegExp, pos: number) => {
             const match = reg.exec(this.src.slice(pos))
@@ -99,11 +100,18 @@ export class Lexer {
         const len = Math.max(...[decReg, hexReg, octReg, binReg].map(r => matchLiteral(r, this.pos)))
         if (len == 0)
             return null
-        const sufReg = /^[a-zA-Z][a-zA-Z0-9_]*/
+        // const sufReg = /^[a-zA-Z][a-zA-Z0-9_]*/
+        const sufReg = /^[a-zA-Z0-9_]*/  // to raise error for something like 0b123
         const sufLen = matchLiteral(sufReg, this.pos + len)
+        // const allowedSuf = ["u8", "i8", "u16", "i16", "u32", "i32", "u64", "i64", "u128", "i128", "usize"]
+        const allowedSuf = ["u32", "i32", "usize", "isize", ""]
+        const suffix = this.src.slice(this.pos + len, this.pos + len + sufLen)
+        if (!allowedSuf.includes(suffix))
+            return null
         return {
             type: TT.IntegerLiteral,
-            raw: this.src.slice(this.pos, this.pos + len + sufLen)
+            raw: this.src.slice(this.pos, this.pos + len + sufLen),
+            suf: suffix
         }
     }
 
