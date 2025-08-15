@@ -11,6 +11,9 @@ import { Keyword, Token, TokenType } from "../lexer/token"
  * 
  * Also, the combinator does not support left recursion, which we also need to handle by hand.
  * So...Beware of fault paths!
+ * 
+ * Well...Maybe we can fix it with continuation (and possibly amb operator)? Refer https://zhuanlan.zhihu.com/p/25411428
+ * Yes, continuation solves the problem. See parsek/parsek.ts and parsek/parsek-test.ts
  */
 
 type Info = {
@@ -38,7 +41,7 @@ export function map<A, B>(f: (a: A) => B, ps: Parser<A>): Parser<B> {
 }
 
 export function lazy<T>(ps: () => Parser<T>): Parser<T> {
-  return (input) => ps()(input)
+    return (input) => ps()(input)
 }
 
 function seq1<A, B>(pa: Parser<A>, pb: Parser<B>): Parser<[A, B]> {
@@ -51,28 +54,28 @@ function seq1<A, B>(pa: Parser<A>, pb: Parser<B>): Parser<[A, B]> {
 }
 
 export function seq<T extends any[]>(...parsers: { [K in keyof T]: Parser<T[K]> }): Parser<T> {
-  return src => {
-    const results: any[] = []
-    let rest = src
-    for (const p of parsers) {
-      const r = p(rest)
-      if (!r) return null
-      const [value, next] = r
-      results.push(value)
-      rest = next
+    return src => {
+        const results: any[] = []
+        let rest = src
+        for (const p of parsers) {
+            const r = p(rest)
+            if (!r) return null
+            const [value, next] = r
+            results.push(value)
+            rest = next
+        }
+        return [results as T, rest]
     }
-    return [results as T, rest]
-  }
 }
 
 export function or<T extends any[]>(...parsers: { [K in keyof T]: Parser<T[K]> }): Parser<T[number]> {
-  return (input) => {
-    for (const p of parsers) {
-      const r = p(input);
-      if (r) return r;
-    }
-    return null;
-  };
+    return (input) => {
+        for (const p of parsers) {
+            const r = p(input);
+            if (r) return r;
+        }
+        return null;
+    };
 }
 
 export function many<T>(p: Parser<T>): Parser<T[]> {
