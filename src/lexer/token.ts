@@ -58,7 +58,7 @@ interface TokenCommon {
 }
 
 type NormalToken = {
-    type: Exclude<TokenType, TokenType.Keyword | TokenType.IntegerLiteral>,
+    type: Exclude<TokenType, TokenType.Keyword | TokenType.IntegerLiteral | TokenType.Operator>,
     raw: string
 }
 
