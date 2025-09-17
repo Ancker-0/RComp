@@ -1,7 +1,6 @@
 import { tokenize } from "./lexer/index";
 import { TokenType } from "./lexer/token"
 import util from 'util'
-import { block } from "./parser/parser_toy";
 import { maybe, seq } from "./parser/parsec";
 import { id, keyword } from "./parser/putil";
 import { fn } from "./parser/parser";

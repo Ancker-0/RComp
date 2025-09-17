@@ -91,7 +91,7 @@ export function seq<
     }
 }
 
-export function or<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
+export function or1<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
     return <M>(src: Info, k: Cont<A | B, M>) =>
         pa(src, ra => {
             const rest = k(ra)
@@ -99,7 +99,7 @@ export function or<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
         })
 }
 
-export const maybe = <T>(p: ParserK<T>) => or(p, skip)
+export const maybe = <T>(p: ParserK<T>) => or1(p, skip)
 
 // This consumes valid token as many as possible, at once and only once
 export function many<T>(p: ParserK<T>): ParserK<T[]> {
@@ -167,6 +167,14 @@ export function manyR<T>(p: ParserK<T>): ParserK<T[]> {
         }
         return loop(src)
     }
+}
+
+export function lazy<T>(ps: () => ParserK<T>): ParserK<T> {
+  return (...input) => ps()(...input)
+}
+
+export function more<T>(p: ParserK<T>): ParserK<T[]> {
+    return map(([x, xs]: any) => [x, ...xs], seq(p, many(p)))
 }
 
 /*

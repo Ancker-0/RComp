@@ -9,6 +9,9 @@ export enum ASTType {
     ReferencePattern,
     Type,
     BlockExpr,
+    Let,
+    LiteralExpr,
+    EmptyStatement,
 }
 
 export interface ASTBase {
@@ -30,6 +33,7 @@ export type Pattern = IdentifierPattern | WildcardPattern | ReferencePattern
 
 export interface IdentifierPattern extends ASTBase {
     kind: ASTType.IdentifierPattern
+    name: string
 }
 
 export interface WildcardPattern extends ASTBase {
@@ -50,13 +54,36 @@ export const unitType: Type = {
     value: "()"
 }
 
+export type Item = FuncItem
+
+export type Statement = EmptyStatement | Item | LetStatement
+
+export type Expr = LiteralExpr  // TODO
+
+export interface LiteralExpr extends ASTBase {
+    kind: ASTType.LiteralExpr
+    type: "char" | "string" | "rstring" | "cstring" | "rcstring" | "integer" | "true" | "false"
+    value: string
+}
+
+export interface EmptyStatement extends ASTBase {
+    kind: ASTType.EmptyStatement
+}
+
+export interface LetStatement extends ASTBase {
+    kind: ASTType.Let
+    pattern: Pattern
+    type: Type
+    expr?: Expr
+}
+
 export interface FuncItem extends ASTBase {
     kind: ASTType.Fn
     name: string
     quantifier: ("const")[]
     params: Param[]
     returnType: Type
-    body: BlockExpr
+    body?: BlockExpr
 }
 
 export interface BlockExpr extends ASTBase {

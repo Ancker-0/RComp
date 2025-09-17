@@ -1,7 +1,7 @@
 // An example to showcase that the continuation version is stronger (i.e. has the ability to "trace back")
 import { tokenize } from "../../lexer"
 import { TokenType } from "../../lexer/token"
-import { execute, maybe as maybeK, or as orK, ParserK, seq as seqK, withCont, withoutCont } from "./parsek"
+import { execute, maybe as maybeK, or1 as orK, ParserK, seq as seqK, withCont, withoutCont } from "./parsek"
 import { id, keyword } from "../putil"
 import util from 'util'
 import { maybe, or, seq } from "../parsec"
