@@ -3,6 +3,11 @@
     "main": "build/index.js",
     "scripts": {
         "build": "tsc",
-        "start": "node build/index.js"
+        "start": "node build/index.js",
+        "pratt": "node build/parser/pratt-parse/pratt.js"
+    },
+    "devDependencies": {
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.2"
     }
 }

@@ -1,10 +1,10 @@
 // An example to showcase that the continuation version is stronger (i.e. has the ability to "trace back")
 import { tokenize } from "../../lexer"
 import { TokenType } from "../../lexer/token"
-import { execute, or as orK, ParserK, seq as seqK, withCont, withoutCont } from "./parsek"
+import { execute, maybe as maybeK, or as orK, ParserK, seq as seqK, withCont, withoutCont } from "./parsek"
 import { id, keyword } from "../putil"
 import util from 'util'
-import { or, seq } from "../parsec"
+import { maybe, or, seq } from "../parsec"
 
 const src = `fn let if`
 const tokens = tokenize(src)
@@ -18,7 +18,8 @@ const parserK = seqK(
         seqK(keywordK("let"), keywordK("if")),
         keywordK("let"),
     ),
-    keywordK("if")
+    maybeK(keywordK("as")),
+    keywordK("if"),
 )
 
 const parser = seq(
@@ -27,7 +28,9 @@ const parser = seq(
         seq(keyword("let"), keyword("if")),
         keyword("let"),
     ),
-    keyword("if"))
+    maybe(keyword("as")),
+    keyword("if"),
+)
 
 const log = (...args: any[]) => {
     const inspected = args.map(a => util.inspect(a, { depth: null, colors: true }))

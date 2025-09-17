@@ -1,31 +1,32 @@
-import { TokenType, Token } from "../lexer/token";
-import { lazy, many, map, maybe, more, nothing, or, seq, skip } from "./parsec";
-import { id, keyword, operator } from "./putil"
+import { SourceMap } from "module"
+import * as ast from "./ast"
+import { fmap, map, maybe, or, ParserK, seq, skip, some } from "./parsek/parsek"
+import { id, keyword, operator } from "./parsek/pkutil"
+import { TokenType } from "../lexer/token"
 
+export const type: ParserK<ast.Type> = fmap(id(TokenType.Identifier), r => ({ kind: ast.ASTType.Type, value: r.raw }))
 
-const typename = id(TokenType.Identifier)  // TODO
-
-const expression = id(TokenType.IntegerLiteral)  // TODO
-const expression_noblock = expression  // TODO
-
-const rangePattern = nothing
-const identifierPattern = seq(
-    maybe(keyword("ref")), maybe(keyword("mut")),
-    id(TokenType.Identifier),
-    // maybe(seq(operator("@"), lazy(() => patternNoTopAlt)))
+export const block: ParserK<ast.BlockExpr> = fmap(  // TODO
+    seq(id(TokenType.LeftBrace), id(TokenType.RightBrace)),
+    r => ({
+        kind: ast.ASTType.BlockExpr,
+    })
 )
-const patternWithoutRange = or(identifierPattern, nothing)
-const patternNoTopAlt = or(patternWithoutRange, rangePattern)
 
-const let_stmt =
-    seq(keyword("let"),
-        patternNoTopAlt,
-        maybe(seq(id(TokenType.Colon), typename)),
-        maybe(seq(operator("="), expression)),
-        id(TokenType.Semicolon))  // TODO
-const statement = or(id(TokenType.Semicolon), let_stmt)  // TODO
-const statements = or(more(statement), maybe(seq(more(statement), expression_noblock)), expression_noblock)
-
-export const block =
-    map(([_0, stmt, _1]: any) => stmt as Token[],
-        seq(id(TokenType.LeftBrace), statements, id(TokenType.RightBrace)))
+export const fn: ParserK<ast.FuncItem> = fmap(
+    seq(
+        maybe(keyword("const")), keyword("fn"), id(TokenType.Identifier),
+        id(TokenType.LeftParen), seq(skip), id(TokenType.RightParen),
+        maybe(seq(operator("->"), type)),
+        or(id(TokenType.Semicolon), block)
+    ),
+    res => ({
+        kind: ast.ASTType.Fn,
+        name: "",
+        quantifier: res[0] === null ? [] : ["const"],
+        params: [],
+        returnType: res[6] ? res[6][1] : ast.unitType,
+        body: {
+            kind: ast.ASTType.BlockExpr
+        }
+    }))

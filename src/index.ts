@@ -1,9 +1,11 @@
 import { tokenize } from "./lexer/index";
 import { TokenType } from "./lexer/token"
 import util from 'util'
-import { block } from "./parser/parser";
+import { block } from "./parser/parser_toy";
 import { maybe, seq } from "./parser/parsec";
 import { id, keyword } from "./parser/putil";
+import { fn } from "./parser/parser";
+import { execute } from "./parser/parsek/parsek";
 
 const sampleSrc = `fn main() {
     let numbers: [i32; 3] = [10, 20, 30];
@@ -43,6 +45,7 @@ async function readStdinAll(): Promise<string> {
         console.log(...inspected)
     }
 
-    log(block({ token: tokens, start: 0 }))
+    // log(block({ token: tokens, start: 0 }))
+    log(execute(fn, { token: tokens, start: 0 })?.[0])
     // console.log(maybe(seq(keyword("let"), maybe(keyword("if")), keyword("else")))({ token: tokens, start: 0 }))
 })()

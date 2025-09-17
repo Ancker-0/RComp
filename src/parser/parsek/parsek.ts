@@ -2,10 +2,18 @@
 import { Keyword, Token, TokenType } from "../../lexer/token"
 import { Parser } from "../parsec"
 
-type Info = {
+export type Info = {
     token: Token[]
     start: number
 }
+
+export function next(src: Info, n?: number): Info {
+    return {
+        token: src.token,
+        start: src.start + (n ?? 1)
+    }
+}
+
 type Result<M> = { succ: true, value: M } | { succ: false }
 export function get<M>(r: Result<M>, defaultV: M) {
     return r.succ? r.value : defaultV
@@ -36,6 +44,10 @@ export const nothing: ParserK<never> = <M>(src: Info, k: Cont<never, M>) => k(nu
 export const skip: ParserK<null> = <M>(src: Info, k: Cont<null, M>) => k([null, src])
 
 export function map<A, B>(f: (a: A) => B, pa: ParserK<A>): ParserK<B> {
+    return (src, k) => pa(src, r => k(r ? [f(r[0]), r[1]] : null))
+}
+
+export function fmap<A, B>(pa: ParserK<A>, f: (a: A) => B): ParserK<B> {
     return (src, k) => pa(src, r => k(r ? [f(r[0]), r[1]] : null))
 }
 
@@ -86,6 +98,8 @@ export function or<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
             return rest.succ ? rest : pb(src, k)
         })
 }
+
+export const maybe = <T>(p: ParserK<T>) => or(p, skip)
 
 /*
 export const skip: Parser<null> = (src: Info) => [null, src]
