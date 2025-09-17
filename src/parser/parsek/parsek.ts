@@ -101,6 +101,74 @@ export function or<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
 
 export const maybe = <T>(p: ParserK<T>) => or(p, skip)
 
+// This consumes valid token as many as possible, at once and only once
+export function many<T>(p: ParserK<T>): ParserK<T[]> {
+    return <M>(src: Info, k: Cont<T[], M>) => {
+        const result: T[] = []
+        // let rest = src
+        // while (true) {
+        //     const r = p(rest)
+        //     if (!r) return [result, rest]
+        //     result.push(r[0])
+        //     rest = r[1]
+        // }
+        const loop = (rest: Info): Result<M> => {
+            return p(rest, r => {
+                if (!r)
+                    return k([result, rest])
+                else {
+                    result.push(r[0])
+                    return loop(r[1])
+                }
+            })
+        }
+        return loop(src)
+    }
+}
+
+// This will try every possible outcome. i.e. ϵ, p, pp, ...
+export function manyL<T>(p: ParserK<T>): ParserK<T[]> {
+    return <M>(src: Info, k: Cont<T[], M>) => {
+        const result: T[] = []
+        const loop = (rest: Info): Result<M> => {
+            const t = k([result, rest])
+            if (t.succ)
+                return t;
+            return p(rest, r => {
+                if (!r)
+                    return t
+                else {
+                    result.push(r[0])
+                    return loop(r[1])
+                }
+            })
+        }
+        return loop(src)
+    }
+}
+
+// This will try every possible outcome, but from more to less. i.e. [..., pp, p, ϵ]
+export function manyR<T>(p: ParserK<T>): ParserK<T[]> {
+    return <M>(src: Info, k: Cont<T[], M>) => {
+        const result: T[] = []
+        const loop = (rest: Info): Result<M> => {
+            return p(rest, r => {
+                if (!r)
+                    return k([result, rest])
+                else {
+                    result.push(r[0])
+                    const t = loop(r[1])
+                    if (t.succ)
+                        return t;
+                    result.pop()
+                    return k([result, rest])
+                }
+            })
+        }
+        return loop(src)
+    }
+}
+
 /*
 export const skip: Parser<null> = (src: Info) => [null, src]
 
