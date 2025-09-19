@@ -1,9 +1,8 @@
 import * as ast from "./ast"
-import { fmap, many, manyL, map, maybe, more, or1, ParserK, seq, skip, some } from "./parsek/parsek"
+import { fmap, lazy, many, manyL, map, maybe, more, or1, ParserK, seq, skip, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { Token, TokenType } from "../lexer/token"
 
-export const type: ParserK<ast.Type> = fmap(id(TokenType.Identifier), r => ({ kind: ast.ASTType.Type, value: r.raw }))
 export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identifier),
     r => ({
         kind: ast.ASTType.IdentifierPattern,
@@ -23,6 +22,22 @@ export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLi
     }
 )
 export const expr: ParserK<ast.Expr> = literalExpr
+
+export const unitType: ParserK<ast.Type> = fmap(
+    seq(id(TokenType.LeftParen), id(TokenType.RightParen)),
+    _ => ast.unitType);
+export const typePath: ParserK<ast.TypePath> = fmap(
+    or1(id(TokenType.Identifier), keyword("Self")),
+    r => ({ kind: ast.ASTType.TypePath, value: typeof r === 'string' ? r : r.raw }))
+export const arrayType: ParserK<ast.ArrayType> = fmap(
+    seq(id(TokenType.LeftBracket), lazy(() => type), id(TokenType.Semicolon), expr, id(TokenType.RightBracket)),
+    r => ({
+        kind: ast.ASTType.ArrayType,
+        type: r[1],
+        expr: r[3],
+    })
+)
+export const type: ParserK<ast.Type> = or1(or1(unitType, typePath), arrayType)
 
 export const letStatement: ParserK<ast.LetStatement> = fmap(
     seq(
@@ -64,10 +79,21 @@ export const block: ParserK<ast.BlockExpr> = fmap(  // TODO
     })
 )
 
+const selfParam = or1(
+    seq(maybe(operator("&")), maybe(keyword("mut")), keyword("self")),
+    seq(maybe(keyword("mut")), keyword("self"), id(TokenType.Colon), type))
+
+const funcParam = skip;
+
 export const fn: ParserK<ast.FuncItem> = fmap(
     seq(
         maybe(keyword("const")), keyword("fn"), id(TokenType.Identifier),
-        id(TokenType.LeftParen), skip, id(TokenType.RightParen),
+        id(TokenType.LeftParen),
+        or1(
+            seq(selfParam, maybe(id(TokenType.Comma))),
+            seq(maybe(seq(selfParam, id(TokenType.Comma))), funcParam, maybe(many(seq(id(TokenType.Comma), funcParam))), maybe(id(TokenType.Comma)))
+        ),
+        id(TokenType.RightParen),
         maybe(seq(operator("->"), type)),
         or1(id(TokenType.Semicolon), block)
     ),

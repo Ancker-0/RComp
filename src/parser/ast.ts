@@ -4,10 +4,16 @@ export enum ASTType {
     Statement,
     Fn,
     FnParam,
+
     IdentifierPattern,
     WildcardPattern,
     ReferencePattern,
-    Type,
+
+    // Type,
+    UnitType,
+    TypePath,
+    ArrayType,
+
     BlockExpr,
     Let,
     LiteralExpr,
@@ -44,14 +50,18 @@ export interface ReferencePattern extends ASTBase {
     kind: ASTType.ReferencePattern
 }
 
-export interface Type extends ASTBase {
-    kind: ASTType.Type
-    value: any
+export type Type = UnitType | TypePath | ArrayType
+export interface UnitType extends ASTBase {
+    kind: ASTType.UnitType
 }
-
-export const unitType: Type = {
-    kind: ASTType.Type,
-    value: "()"
+export const unitType: UnitType = { kind: ASTType.UnitType }
+export interface TypePath extends ASTBase {
+    kind: ASTType.TypePath
+}
+export interface ArrayType extends ASTBase {
+    kind: ASTType.ArrayType
+    type: Type
+    expr: Expr
 }
 
 export type Item = FuncItem

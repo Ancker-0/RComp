@@ -1,6 +1,6 @@
 import { tokenize } from "./lexer/index";
 import util from 'util'
-import { fn } from "./parser/parser";
+import { fn, type } from "./parser/parser";
 import { execute } from "./parser/parsek/parsek";
 
 const sampleSrc = `fn main() {
@@ -42,6 +42,6 @@ async function readStdinAll(): Promise<string> {
     }
 
     // log(block({ token: tokens, start: 0 }))
-    log(execute(fn, { token: tokens, start: 0 })?.[0])
+    log(execute(type, { token: tokens, start: 0 })?.[0])
     // console.log(maybe(seq(keyword("let"), maybe(keyword("if")), keyword("else")))({ token: tokens, start: 0 }))
 })()
