@@ -2,7 +2,8 @@ import { KeywordToken, Operator, OperatorToken, Token, TokenGeneric, TokenType }
 
 export enum ASTType {
     Statement,
-    Fn,
+    ConstItem,
+    FnItem,
     FnParam,
 
     IdentifierPattern,
@@ -22,8 +23,10 @@ export enum ASTType {
     UnaryExpr,
     ArrayExpr,
     RepeatArrayExpr,
+    IndexExpr,
 
-    Let,
+    LetStatement,
+    ExprStatement,
     EmptyStatement,
 }
 
@@ -71,11 +74,9 @@ export interface ArrayType extends ASTBase {
     expr: Expr
 }
 
-export type Item = FuncItem
+export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
-export type Statement = EmptyStatement | Item | LetStatement
-
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr
 export interface CallExpr extends ASTBase {
     kind: ASTType.CallExpr
     value: Expr
@@ -83,7 +84,7 @@ export interface CallExpr extends ASTBase {
 }
 export interface LiteralExpr extends ASTBase {
     kind: ASTType.LiteralExpr
-    type: "char" | "string" | "rstring" | "cstring" | "rcstring" | "integer" | "true" | "false"
+    type: "char" | "string" | "rstring" | "cstring" | "rcstring" | "integer" | "bool"
     value: string
 }
 export interface UnaryExpr extends ASTBase {
@@ -110,25 +111,42 @@ export interface RepeatArrayExpr extends ASTBase {
     val: Expr
     repeat: Expr
 }
+export interface IndexExpr extends ASTBase {
+    kind: ASTType.IndexExpr
+    arr: Expr
+    idx: Expr
+}
 
 export interface EmptyStatement extends ASTBase {
     kind: ASTType.EmptyStatement
 }
 
 export interface LetStatement extends ASTBase {
-    kind: ASTType.Let
+    kind: ASTType.LetStatement
     pattern: Pattern
     type: Type
     expr?: Expr
 }
 
+export interface ExprStatement extends ASTBase {
+    kind: ASTType.ExprStatement
+    expr: Expr
+}
+
+export type Item = FuncItem | ConstItem
 export interface FuncItem extends ASTBase {
-    kind: ASTType.Fn
+    kind: ASTType.FnItem
     name: string
     quantifier: ("const")[]
     params: Param[]
     returnType: Type
     body?: BlockExpr
+}
+export interface ConstItem extends ASTBase {
+    kind: ASTType.ConstItem
+    name: string
+    type: Type
+    val?: Expr
 }
 
 export interface BlockExpr extends ASTBase {

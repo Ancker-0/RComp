@@ -57,6 +57,13 @@ function atomExpr(t: Token): ast.Expr {
                 kind: ast.ASTType.PathExpr,
                 segs: [t.raw],
             }
+        case TokenType.Keyword:
+            if (t.raw == "true" || t.raw == "false")
+                return {
+                    kind: ast.ASTType.LiteralExpr,
+                    type: "bool",
+                    value: t.raw,
+                }
         default:
             throw new Error("Hahaha")
     }
@@ -90,6 +97,7 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
         if (token[start]?.type == TokenType.RightBracket) {
             ++start
         } else if (token[start]?.type == TokenType.Semicolon) {
+            ++start
             const r1 = parseExpr({ ...src, start }, -Infinity)
             ret = {
                 kind: ast.ASTType.RepeatArrayExpr,
@@ -159,6 +167,48 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                 operand: [ret, rest[0]]
             }
             start = rest[1].start
+        } else if (op.type == TokenType.LeftBracket) {
+            const rest = parseExpr({ ...src, start }, -Infinity)
+            start = rest[1].start
+            if (start < token.length && parMatch(op, token[start]!)) {
+                ret = {
+                    kind: ast.ASTType.IndexExpr,
+                    arr: ret,
+                    idx: rest[0],
+                }
+                ++start
+            } else
+                throw new Error("Unmatched bracket")
+        } else if (op.type == TokenType.LeftParen) {
+            if (token[start]?.type == TokenType.RightParen) {
+                ret = {
+                    kind: ast.ASTType.CallExpr,
+                    value: ret,
+                    param: [],
+                }
+                ++start
+                continue
+            }
+            const rest = parseExpr({ ...src, start }, -Infinity)
+            start = rest[1].start
+            const param: ast.Expr[] = [rest[0]]
+            while (token[start]?.type == TokenType.Comma) {
+                ++start
+                if (token[start]?.type == TokenType.RightParen)
+                    break
+                const r = parseExpr({ ...src, start }, -Infinity)
+                param.push(r[0])
+                start = r[1].start
+            }
+            if (start < token.length && parMatch(op, token[start]!)) {
+                ret = {
+                    kind: ast.ASTType.CallExpr,
+                    value: ret,
+                    param,
+                }
+                ++start
+            } else
+                throw new Error("Unmatched paren")
         } else {
             --start
             break
@@ -168,14 +218,14 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
 }
 
 export const expr: ParserK<ast.Expr> = (src, k) => {
-    // try {
+    try {
         const r = parseExpr(src, -Infinity)
         // log(r)
         return k(r)
-    // } catch (e) {
-    //     log(e)
-    //     return k(null)
-    // }
+    } catch (e) {
+        // log(e)
+        return k(null)
+    }
 }
 
 const log = (...args: any[]) => {

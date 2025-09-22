@@ -2,6 +2,7 @@ import { tokenize } from "./lexer/index";
 import util from 'util'
 import { fn, type } from "./parser/parser";
 import { execute } from "./parser/parsek/parsek";
+import { expr } from "./parser/pratt-parse/expr";
 
 const sampleSrc = `fn main() {
     let numbers: [i32; 3] = [10, 20, 30];

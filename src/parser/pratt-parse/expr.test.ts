@@ -34,6 +34,17 @@ test("expr 10", succTest(expr, `x = -y = a + -b * c * (d.f! - (e)!)!`))
 
 test("expr 11", succTest(expr, `[1, 2, 3]`))
 test("expr 12", succTest(expr, `[1, 2, 3] 4`, 1))
+test("expr 13", succTest(expr, `[1, 2, 3][4] 5`, 1))
+test("expr 14", succTest(expr, `Hello(0, 1, [2, 3, Coffish()] + [b][0]) * 3`))
+test("expr 15", succTest(expr, `[H()]()`))
+test("expr 16", succTest(expr, `(H()()(z())))`, 1))
+test("expr 17", succTest(expr, `[1; 2]`))
+test("expr 18", succTest(expr, `[1 + 2 * (3 + 4); [1, 2][0]]`))
+test("expr 19", failTest(expr, `[1 + 2 * (3 + 4), 5, 6; [1, 2,][0]]`))
+test("expr 20", failTest(expr, `[1 + 2 * (3 + 4); [1, 2,][0], 3]`))
+test("expr 21", succTest(expr, `call(1, 2, 3)`))
+test("expr 22", succTest(expr, `call(1, 2, call(me(deep(rec(function(call()))))))`))
+test("expr 23", succTest(expr, `[ [1, 2, 3,], [4, 5, 6,], ]`))
+
 
 // test("expr 7", succTest(expr, `[1; 2]`))
-// test("expr 8", succTest(expr, `[1 + 2 * (3 + 4), 5, 6; [1, 2]]`))

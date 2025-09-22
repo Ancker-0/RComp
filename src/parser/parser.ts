@@ -47,23 +47,31 @@ export const letStatement: ParserK<ast.LetStatement> = fmap(
         maybe(seq(operator("="), expr)), id(TokenType.Semicolon)
     ),
     r => ({
-        kind: ast.ASTType.Let,
+        kind: ast.ASTType.LetStatement,
         pattern: r[1],
         type: r[3],
         ...(r[4] && { expr: r[4][1] })
     })
 )
 
+export const exprStatement: ParserK<ast.ExprStatement> = fmap(  // TODO: expr with block
+    seq(expr, id(TokenType.Semicolon)),
+    r => ({
+        kind: ast.ASTType.ExprStatement,
+        expr: r[0],
+    })
+)
+
 function expect<T>(v: T) { }
 
 export const statement: ParserK<ast.Statement> = fmap(
-    or1(id(TokenType.Semicolon), letStatement),
+    or1(id(TokenType.Semicolon), or1(lazy(()=>item), or1(letStatement, exprStatement))),
     r => {
         if ('raw' in r) {
             expect<Token>(r)
             return { kind: ast.ASTType.EmptyStatement }
         } else {
-            expect<ast.LetStatement>(r)
+            expect<ast.LetStatement | ast.ExprStatement | ast.Item>(r)
             return r
         }
     }
@@ -100,10 +108,22 @@ export const fn: ParserK<ast.FuncItem> = fmap(
         or1(id(TokenType.Semicolon), block)
     ),
     res => ({
-        kind: ast.ASTType.Fn,
+        kind: ast.ASTType.FnItem,
         name: "",
         quantifier: res[0] === null ? [] : ["const"],
         params: [],
         returnType: res[6] ? res[6][1] : ast.unitType,
         ...('raw' in res[7] ? {} : { body: res[7] }),
     }))
+
+export const constItem: ParserK<ast.ConstItem> = fmap(
+    seq(keyword("const"), id(TokenType.Identifier), id(TokenType.Colon), type, maybe(seq(operator("="), expr))),
+    r => ({
+        kind: ast.ASTType.ConstItem,
+        name: r[1].raw,
+        type: r[3],
+        ...(r[4] ? { val: r[4][1] } : {})
+    })
+)
+
+export const item: ParserK<ast.Item> = or1(fn, constItem)
