@@ -177,6 +177,22 @@ export function more<T>(p: ParserK<T>): ParserK<T[]> {
     return map(([x, xs]: any) => [x, ...xs], seq(p, many(p)))
 }
 
+export function makeInfix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {
+    return fmap(
+        seq(pe, many(seq(pb, pe))),
+        // r => [r[0], ...r[1].flat(1)]
+        r => r
+    );
+}
+
+export function makePrefix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {
+    return fmap(
+        seq(many(pb), pe),
+        // r => [...r[0], r[1]]
+        r => r
+    );
+}
+
 /*
 export const skip: Parser<null> = (src: Info) => [null, src]
 

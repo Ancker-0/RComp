@@ -1,4 +1,4 @@
-import { KeywordToken, Token, TokenGeneric } from "../lexer/token"
+import { KeywordToken, Operator, OperatorToken, Token, TokenGeneric, TokenType } from "../lexer/token"
 
 export enum ASTType {
     Statement,
@@ -15,8 +15,13 @@ export enum ASTType {
     ArrayType,
 
     BlockExpr,
-    Let,
     LiteralExpr,
+    CallExpr,
+    PathExpr,
+    BinaryExpr,
+    UnaryExpr,
+
+    Let,
     EmptyStatement,
 }
 
@@ -68,12 +73,31 @@ export type Item = FuncItem
 
 export type Statement = EmptyStatement | Item | LetStatement
 
-export type Expr = LiteralExpr  // TODO
-
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr  // TODO
+export interface CallExpr extends ASTBase {
+    kind: ASTType.CallExpr
+    value: Expr
+    param: Expr[]
+}
 export interface LiteralExpr extends ASTBase {
     kind: ASTType.LiteralExpr
     type: "char" | "string" | "rstring" | "cstring" | "rcstring" | "integer" | "true" | "false"
     value: string
+}
+export interface UnaryExpr extends ASTBase {
+    kind: ASTType.UnaryExpr
+    operator: Operator
+    operand: Expr
+    position: "prefix" | "postfix"
+}
+export interface BinaryExpr extends ASTBase {
+    kind: ASTType.BinaryExpr
+    operator: Operator
+    operand: [Expr, Expr]
+}
+export interface PathExpr extends ASTBase {
+    kind: ASTType.PathExpr
+    segs: string[]
 }
 
 export interface EmptyStatement extends ASTBase {

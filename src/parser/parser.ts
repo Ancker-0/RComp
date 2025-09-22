@@ -2,6 +2,7 @@ import * as ast from "./ast"
 import { fmap, lazy, many, manyL, map, maybe, more, or1, ParserK, seq, skip, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { Token, TokenType } from "../lexer/token"
+import { expr } from "./pratt-parse/expr"
 
 export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identifier),
     r => ({
@@ -9,19 +10,20 @@ export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identif
         name: r.raw
     }))
 export const pattern: ParserK<ast.Pattern> = identifierPattern
-export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
-    r => {
-        if (r.type == TokenType.IntegerLiteral) {
-            return {
-                kind: ast.ASTType.LiteralExpr,
-                type: "integer",
-                value: r.raw
-            }
-        } else
-            throw Error("HAHA")
-    }
-)
-export const expr: ParserK<ast.Expr> = literalExpr
+
+// export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
+//     r => {
+//         if (r.type == TokenType.IntegerLiteral) {
+//             return {
+//                 kind: ast.ASTType.LiteralExpr,
+//                 type: "integer",
+//                 value: r.raw
+//             }
+//         } else
+//             throw Error("HAHA")
+//     }
+// )
+// export const expr: ParserK<ast.Expr> = literalExpr
 
 export const unitType: ParserK<ast.Type> = fmap(
     seq(id(TokenType.LeftParen), id(TokenType.RightParen)),

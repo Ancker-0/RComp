@@ -1,6 +1,5 @@
 // Reference: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
-import { parse } from "path"
 import { tokenize } from "../../lexer"
 import { Operator, OperatorToken, Token, TokenType } from "../../lexer/token"
 import util from 'util'
