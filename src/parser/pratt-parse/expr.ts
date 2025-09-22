@@ -62,18 +62,56 @@ function atomExpr(t: Token): ast.Expr {
     }
 }
 
+function parMatch(l: Token, r: Token) {
+    return (l.type == TokenType.LeftParen && r.type == TokenType.RightParen)
+        || (l.type == TokenType.LeftBracket && r.type == TokenType.RightBracket)
+}
+
 export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
     let { token, start } = src
     if (start >= token.length)
         throw Error("Oops")
+    // log(src)
     let ret: ast.Expr
     const f = token[start++]!
     // let ret: [Sexp, Info] = [token[start++]!, next(src)]!
     if (f.type == TokenType.LeftParen) {
         const rest = parseExpr({ ...src, start }, -Infinity)
         ret = rest[0], start = rest[1].start
-        if (src.token[start++]?.type != TokenType.RightParen)
+        if (!parMatch(f, src.token[start++]!))
             throw new Error('Unmatched paren')
+    } else if (f.type == TokenType.LeftBracket) {
+        ret = {
+            kind: ast.ASTType.ArrayExpr,
+            val: [],
+        }
+        const rest = parseExpr({ ...src, start }, -Infinity)
+        ret.val.push(rest[0]), start = rest[1].start
+        if (token[start]?.type == TokenType.RightBracket) {
+            ++start
+        } else if (token[start]?.type == TokenType.Semicolon) {
+            const r1 = parseExpr({ ...src, start }, -Infinity)
+            ret = {
+                kind: ast.ASTType.RepeatArrayExpr,
+                val: ret.val[0]!,
+                repeat: r1[0],
+            }
+            start = r1[1].start
+            if (token[start++]!.type != TokenType.RightBracket)
+                throw new Error("Unmatched bracket")
+        } else if (token[start]?.type == TokenType.Comma) {
+            ++start
+            while (start < token.length && token[start]?.type != TokenType.RightBracket) {
+                const r1 = parseExpr({ ...src, start }, -Infinity)
+                ret.val.push(r1[0])
+                start = r1[1].start
+                if (token[start]?.type == TokenType.Comma)
+                    ++start
+            }
+            if (token[start]?.type != TokenType.RightBracket)
+                throw new Error("Unmatched bracket")
+            ++start
+        } else throw new Error("Unexpected token")
     } else if (f.type == TokenType.Operator) {
         const [_, rbp] = prefixPower(f)
         const rest = parseExpr({ ...src, start }, rbp)
@@ -132,6 +170,7 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
 export const expr: ParserK<ast.Expr> = (src, k) => {
     // try {
         const r = parseExpr(src, -Infinity)
+        // log(r)
         return k(r)
     // } catch (e) {
     //     log(e)

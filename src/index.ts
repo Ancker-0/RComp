@@ -42,6 +42,6 @@ async function readStdinAll(): Promise<string> {
     }
 
     // log(block({ token: tokens, start: 0 }))
-    log(execute(type, { token: tokens, start: 0 })?.[0])
+    log(execute(fn, { token: tokens, start: 0 })?.[0])
     // console.log(maybe(seq(keyword("let"), maybe(keyword("if")), keyword("else")))({ token: tokens, start: 0 }))
 })()

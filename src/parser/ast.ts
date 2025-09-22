@@ -20,6 +20,8 @@ export enum ASTType {
     PathExpr,
     BinaryExpr,
     UnaryExpr,
+    ArrayExpr,
+    RepeatArrayExpr,
 
     Let,
     EmptyStatement,
@@ -73,7 +75,7 @@ export type Item = FuncItem
 
 export type Statement = EmptyStatement | Item | LetStatement
 
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr  // TODO
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr
 export interface CallExpr extends ASTBase {
     kind: ASTType.CallExpr
     value: Expr
@@ -98,6 +100,15 @@ export interface BinaryExpr extends ASTBase {
 export interface PathExpr extends ASTBase {
     kind: ASTType.PathExpr
     segs: string[]
+}
+export interface ArrayExpr extends ASTBase {
+    kind: ASTType.ArrayExpr
+    val: Expr[]
+}
+export interface RepeatArrayExpr extends ASTBase {
+    kind: ASTType.RepeatArrayExpr
+    val: Expr
+    repeat: Expr
 }
 
 export interface EmptyStatement extends ASTBase {
