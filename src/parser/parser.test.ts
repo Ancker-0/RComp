@@ -1,6 +1,6 @@
 import { tokenize } from "../lexer"
 import { execute, ParserK } from "./parsek/parsek"
-import { fn, impl, structItem, trait, type } from "./parser"
+import { constItem, fn, impl, structItem, trait, type } from "./parser"
 
 const succTest = <T>(p: ParserK<T>, src: string, rest?: number) => () => {
     const r = execute(p, { token: tokenize(src), start: 0 })
@@ -31,6 +31,7 @@ test("fn 5", succTest(fn, `fn main() { let number: i32 = [10, 20, 30][0]; }}`, 1
 test("fn 6", succTest(fn, `fn main() { let numbers: [i32; 3] = [10, 20, 30]; exit(0); }`))
 test("fn 7", succTest(fn, `fn main() { let flags: [bool; 5] = [false; 5]; flags[2] = true; exit(0); }`))
 test("fn 8", succTest(fn, `fn main() { const MATRIX: [[u32; 3]; 2] = [ [1, 2, 3], [4, 5, 6], ]; exit(0); }`))
+test("fn 9", succTest(fn, `fn red() -> Color { Color(255, 0, 0) }`))
 
 test("struct 1", succTest(structItem, `struct Point {x: i32, y: i32}`))
 test("struct 2", succTest(structItem, `struct Point {x: i32, y: i32, }`))
@@ -38,6 +39,10 @@ test("struct 3", succTest(structItem, `struct Point {}`))
 test("struct 4", failTest(structItem, `struct Point {,}`))
 test("struct 5", succTest(structItem, `struct Point;`))
 test("struct 6", succTest(structItem, `struct Point {};`, 1))
+
+test("const 1", succTest(constItem, `const CONST_NO_DEFAULT: i32;`))
+test("const 2", succTest(constItem, `const CONST_WITH_DEFAULT: i32 = 99;`))
+test("const 3", succTest(constItem, `const WHITE: Color = Color(255, 255, 255);`))
 
 test("trait 1", succTest(trait, `trait Example {
     const CONST_NO_DEFAULT: i32;

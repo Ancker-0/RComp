@@ -118,7 +118,7 @@ export const fn: ParserK<ast.FuncItem> = fmap(
     }))
 
 export const constItem: ParserK<ast.ConstItem> = fmap(
-    seq(keyword("const"), id(TokenType.Identifier), id(TokenType.Colon), type, maybe(seq(operator("="), expr))),
+    seq(keyword("const"), id(TokenType.Identifier), id(TokenType.Colon), type, maybe(seq(operator("="), expr)), id(TokenType.Semicolon)),
     r => ({
         kind: ast.ASTType.ConstItem,
         name: r[1].raw,
