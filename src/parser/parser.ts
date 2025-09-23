@@ -1,8 +1,9 @@
 import * as ast from "./ast"
-import { fmap, lazy, many, manyL, map, maybe, more, or1, ParserK, seq, skip, some } from "./parsek/parsek"
+import { fmap, lazy, many, manyL, map, maybe, more, or, or as or1, ParserK, seq, skip, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { Token, TokenType } from "../lexer/token"
 import { expr } from "./pratt-parse/expr"
+import { tokenize } from "../lexer"
 
 export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identifier),
     r => ({
@@ -65,7 +66,7 @@ export const exprStatement: ParserK<ast.ExprStatement> = fmap(  // TODO: expr wi
 function expect<T>(v: T) { }
 
 export const statement: ParserK<ast.Statement> = fmap(
-    or1(id(TokenType.Semicolon), or1(lazy(()=>item), or1(letStatement, exprStatement))),
+    or(id(TokenType.Semicolon), letStatement, exprStatement, lazy(()=>item)),
     r => {
         if ('raw' in r) {
             expect<Token>(r)
@@ -126,4 +127,70 @@ export const constItem: ParserK<ast.ConstItem> = fmap(
     })
 )
 
-export const item: ParserK<ast.Item> = or1(fn, constItem)
+export const structField: ParserK<ast.StructField> = fmap(
+    seq(id(TokenType.Identifier), id(TokenType.Colon), type),
+    r => ({
+        kind: ast.ASTType.StructField,
+        name: r[0].raw,
+        type: r[2],
+    })
+)
+
+export const structFields: ParserK<ast.StructField[]> = fmap(
+    maybe(seq(structField, many(seq(id(TokenType.Comma), structField)), maybe(id(TokenType.Comma)))),
+    r => r ? [r[0], ...r[1].map(x => x[1])] : []
+)
+
+export const structItem: ParserK<ast.StructItem> = fmap(
+    seq(
+        keyword("struct"), id(TokenType.Identifier),
+        or1(
+            id(TokenType.Semicolon),
+            seq(id(TokenType.LeftBrace), structFields, id(TokenType.RightBrace))
+        )
+    ),
+    r => ({
+        kind: ast.ASTType.StructItem,
+        name: r[1].raw,
+        fields: 'type' in r[2] ? [] : r[2][1]
+    })
+)
+
+export const associatedItems = fmap(
+    more(or1(constItem, fn)),
+    r => ({
+        fn: r.filter(x => x.kind === ast.ASTType.FnItem),
+        const: r.filter(x => x.kind === ast.ASTType.ConstItem),
+    })
+)
+
+export const trait: ParserK<ast.Trait> = fmap(
+    seq(
+        keyword("trait"), id(TokenType.Identifier),
+        id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
+    r => ({
+        kind: ast.ASTType.Trait,
+        ...r[3],
+    })
+)
+
+export const inherentImpl: ParserK<ast.InherentImpl> = fmap(
+    seq(keyword("impl"), typePath, id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
+    r => ({
+        kind: ast.ASTType.InherentImpl,
+        type: r[1],
+        ...r[3],
+    })
+)
+export const traitImpl: ParserK<ast.TraitImpl> = fmap(
+    seq(keyword("impl"), id(TokenType.Identifier), keyword("for"), typePath, id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
+    r => ({
+        kind: ast.ASTType.TraitImpl,
+        name: r[1].raw,
+        type: r[3],
+        ...r[5],
+    })
+)
+export const impl = or(inherentImpl, traitImpl)
+
+export const item: ParserK<ast.Item> = or(fn, constItem, structItem, trait, impl)

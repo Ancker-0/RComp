@@ -17,6 +17,11 @@ function infixPower(token: OperatorToken): [BindPower, BindPower] {
         case "/":
             return [2, 2.5]
         case "=":
+        case "+=":
+        case "-=":
+        case "*=":
+        case "/=":
+        case "%=":
             return [0.5, 0]
         case ".":
             return [6, 6.5]

@@ -4,9 +4,9 @@ An implementation of [RCompiler](https://github.com/peterzheng98/RCompiler-Spec)
 
 Current progress:
 + Finish Lexer basic part
-+ Has a basic parser framework (parser combinator with and without continuation)
-+ Pratt parsing in progress
-+ AST nodes not yet designed
++ Has a basic parser framework (parser combinator with continuation)
++ Pratt parsing almost finished
++ AST nodes not fully defined
 
 See also:
 

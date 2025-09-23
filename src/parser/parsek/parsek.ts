@@ -99,6 +99,13 @@ export function or1<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
         })
 }
 
+export function or<
+    Ps extends [ParserK<any>, ...ParserK<any>[]] // 至少一个 parser
+>(...ps: Ps): ParserK<
+    { [I in keyof Ps]: Ps[I] extends ParserK<infer T> ? T : never }[number]
+> {
+    return ps.reduce((u, v) => or1(u, v))
+}
 export const maybe = <T>(p: ParserK<T>) => or1(p, skip)
 
 // This consumes valid token as many as possible, at once and only once

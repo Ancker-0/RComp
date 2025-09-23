@@ -5,6 +5,11 @@ export enum ASTType {
     ConstItem,
     FnItem,
     FnParam,
+    StructItem,
+    StructField,
+    Trait,
+    InherentImpl,
+    TraitImpl,
 
     IdentifierPattern,
     WildcardPattern,
@@ -133,7 +138,7 @@ export interface ExprStatement extends ASTBase {
     expr: Expr
 }
 
-export type Item = FuncItem | ConstItem
+export type Item = FuncItem | ConstItem | StructItem | Trait | Impl
 export interface FuncItem extends ASTBase {
     kind: ASTType.FnItem
     name: string
@@ -148,7 +153,39 @@ export interface ConstItem extends ASTBase {
     type: Type
     val?: Expr
 }
+export interface StructItem extends ASTBase {
+    kind: ASTType.StructItem
+    name: string
+    fields: StructField[]
+}
+export interface StructField extends ASTBase {
+    kind: ASTType.StructField
+    name: string
+    type: Type
+}
 
 export interface BlockExpr extends ASTBase {
     kind: ASTType.BlockExpr
 }
+
+export interface Trait extends ASTBase {
+    kind: ASTType.Trait
+    fn: FuncItem[]
+    const: ConstItem[]
+}
+
+export type Impl = InherentImpl | TraitImpl
+export interface InherentImpl extends ASTBase {
+    kind: ASTType.InherentImpl
+    type: TypePath
+    fn: FuncItem[]
+    const: ConstItem[]
+}
+export interface TraitImpl extends ASTBase {
+    kind: ASTType.TraitImpl
+    type: TypePath
+    name: string
+    fn: FuncItem[]
+    const: ConstItem[]
+}
+
