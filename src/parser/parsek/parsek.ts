@@ -106,7 +106,7 @@ export function or<
 > {
     return ps.reduce((u, v) => or1(u, v))
 }
-export const maybe = <T>(p: ParserK<T>) => or1(p, skip)
+export const maybe = <T>(p: ParserK<T>) => or1(skip, p)
 
 // This consumes valid token as many as possible, at once and only once
 export function many<T>(p: ParserK<T>): ParserK<T[]> {
