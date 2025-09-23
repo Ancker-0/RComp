@@ -38,3 +38,17 @@ test("struct 3", succTest(structItem, `struct Point {}`))
 test("struct 4", failTest(structItem, `struct Point {,}`))
 test("struct 5", succTest(structItem, `struct Point;`))
 test("struct 6", succTest(structItem, `struct Point {};`, 1))
+
+test("trait 1", succTest(trait, `trait Example {
+    const CONST_NO_DEFAULT: i32;
+    const CONST_WITH_DEFAULT: i32 = 99;
+    fn method_without_default(&self);
+    fn method_with_default(&self) {}
+}`))
+
+test("impl 1", succTest(impl,
+    `impl Color { const WHITE: Color = Color(255, 255, 255);
+    fn red() -> Color {
+            Color(255, 0, 0)
+        }
+    }`))
