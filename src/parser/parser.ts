@@ -1,8 +1,8 @@
 import * as ast from "./ast"
-import { fmap, lazy, many, manyL, map, maybe, more, or, or as or1, ParserK, seq, skip, some } from "./parsek/parsek"
+import { fmap, Info, lazy, many, manyL, map, maybe, more, or, or as or1, ParserK, seq, skip, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { Token, TokenType } from "../lexer/token"
-import { expr } from "./pratt-parse/expr"
+import { expr as exprRaw } from "./pratt-parse/expr"
 import { tokenize } from "../lexer"
 
 export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identifier),
@@ -11,6 +11,8 @@ export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identif
         name: r.raw
     }))
 export const pattern: ParserK<ast.Pattern> = identifierPattern
+
+export const expr = exprRaw  // TODO: add expression with block
 
 // export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
 //     r => {
@@ -82,6 +84,7 @@ export const block: ParserK<ast.BlockExpr> = fmap(  // TODO
     seq(
         id(TokenType.LeftBrace),
         maybe(more(statement)),
+        maybe(exprRaw),
         id(TokenType.RightBrace)
     ),
     r => ({

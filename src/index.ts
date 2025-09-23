@@ -29,7 +29,8 @@ async function readStdinAll(): Promise<string> {
 }
 
 (async () => {
-    let src = await readStdinAll()
+    const src = await readStdinAll()
+    // const src = `fn main() { let numbers: [i32; 3] = [10, 20, 30] }`
 
     const tokens = tokenize(src)
 

@@ -45,6 +45,7 @@ test("expr 20", failTest(expr, `[1 + 2 * (3 + 4); [1, 2,][0], 3]`))
 test("expr 21", succTest(expr, `call(1, 2, 3)`))
 test("expr 22", succTest(expr, `call(1, 2, call(me(deep(rec(function(call()))))))`))
 test("expr 23", succTest(expr, `[ [1, 2, 3,], [4, 5, 6,], ]`))
+test("expr 24", failTest(expr, `let i: i32 = 3;`))
 
 
 // test("expr 7", succTest(expr, `[1; 2]`))
