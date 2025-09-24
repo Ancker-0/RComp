@@ -94,8 +94,11 @@ export function seq<
 export function or1<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
     return <M>(src: Info, k: Cont<A | B, M>) =>
         pa(src, ra => {
-            const rest = k(ra)
-            return rest.succ ? rest : pb(src, k)
+            if (ra) {
+                const rest = k(ra)
+                return rest.succ ? rest : pb(src, k)
+            } else
+                return pb(src, k)
         })
 }
 
