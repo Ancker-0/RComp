@@ -49,10 +49,11 @@ export class Lexer {
 
     private scanKeyword(): KeywordToken | null {
         const KW = KEYWORDS_STRONG
+        let ret: KeywordToken | null = null
         for (const kw of KW)
-            if (this.src.slice(this.pos, this.pos + kw.length) == kw)
-                return { type: TokenType.Keyword, raw: kw }
-        return null
+            if (this.src.slice(this.pos, this.pos + kw.length) == kw && (!ret || kw.length > ret.raw.length))
+                ret = { type: TokenType.Keyword, raw: kw }
+        return ret
     }
 
     private scanOperator(): OperatorToken | null {
