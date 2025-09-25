@@ -69,7 +69,7 @@ export type Type = UnitType | TypePath | ArrayType
 export interface UnitType extends ASTBase {
     kind: ASTType.UnitType
 }
-export const unitType: UnitType = { kind: ASTType.UnitType }
+export const unitType: () => UnitType = () => ({ kind: ASTType.UnitType })
 export interface TypePath extends ASTBase {
     kind: ASTType.TypePath
 }

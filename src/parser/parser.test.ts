@@ -1,6 +1,54 @@
 import { tokenize } from "../lexer"
-import { execute, ParserK } from "./parsek/parsek"
-import { constItem, fn, impl, structItem, trait, type } from "./parser"
+import { TokenType } from "../lexer/token"
+import { execute, get, Info, many, maybe, more, none, or1, ParserK, seq, some } from "./parsek/parsek"
+import { id, keyword, operator } from "./parsek/pkutil"
+import { associatedItems, constItem, fn, impl, structField, structFields, structItem, trait, type } from "./parser"
+import util from 'util'
+
+/*
+const log = (...args: any[]) => {
+    const inspected = args.map(a => util.inspect(a, { depth: null, colors: true }))
+    console.log(...inspected)
+}
+
+const succTest = <T>(p: ParserK<T>, src: string, rest?: number, only?: number) => () => {
+    let count = only ?? 1
+    let rs: [T, Info][] = []
+    if (count < 0)
+        throw new Error("Unexpected parameter")
+        // r = execute(p, { token: tokenize(src), start: 0 })
+    else {
+        const token = tokenize(src)
+        log(token)
+        get(p({ token, start: 0 },
+            t => {
+                if (t && t[1].start + (rest ?? 0) == t[1].token.length) {
+                    rs.push(t)
+                    log(t)
+                }
+                return ({ succ: false })
+            }), null)
+        // r = get(p<[T, Info] | null>({ token: tokenize(src), start: 0 }, x => {
+        //     // log("out", x)
+        //     if (--count < -1)
+        //         return some(null)
+        //     if (!x)
+        //         return count == -1 && res ? some(res) : (count = -1, some(null))
+        //     if (count >= 0) {
+        //         res = x
+        //         return none()
+        //     } else if (count == -1)
+        //         return some(null)
+        //     else
+        //         throw new Error(`Unexpected count ${count}`)
+        // }), null)
+    }
+    // log(r)
+    // expect(rs[0]![0]).toEqual(rs[1]![0])
+    expect(rs.length).toEqual(count)
+    expect(rs.length && rs[0] && rs[0][1].start + (rest ?? 0) == rs[0][1].token.length).toBeTruthy()
+}
+*/
 
 const succTest = <T>(p: ParserK<T>, src: string, rest?: number) => () => {
     const r = execute(p, { token: tokenize(src), start: 0 })
@@ -57,3 +105,15 @@ test("impl 1", succTest(impl,
             Color(255, 0, 0)
         }
     }`))
+
+// test("parsek 1", succTest(seq(maybe(operator("=")), id(TokenType.Semicolon)), `;`))
+// test("parsek 2", succTest(seq(maybe(operator("=")), id(TokenType.Semicolon)), `=;`))
+// test("parsek 3", succTest(many(or1(keyword("as"), keyword("async"))), `as`))
+// test("parsek 4", succTest(many(or1(constItem, fn)), `const CONST_NO_DEFAULT: i32;`))
+// test("parsek 5", succTest(many(or1(fn, constItem)), `const CONST_NO_DEFAULT: i32;`))
+// test("parsek 6", succTest(many(or1(fn, constItem)), `fn hello() {}`))
+// test("parsek 7", succTest(many(or1(constItem, fn)), `fn hello() {}`))
+// test("parsek 8", succTest(or1(constItem, fn), `const CONST_NO_DEFAULT: i32;`))
+// test("parsek 9", succTest(or1(fn, constItem), `const CONST_NO_DEFAULT: i32;`))
+// test("parsek 10", succTest(or1(fn, constItem), `fn hello() {}`))
+// test("parsek 11", succTest(or1(constItem, fn), `fn hello() {}`))

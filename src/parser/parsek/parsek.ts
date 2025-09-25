@@ -75,7 +75,7 @@ export function seq<
 
     // 用 reduce 把多个 parser 合成一个
     const combined = ps.reduce((acc, p) => {
-        if (!acc) return map(x => [x], p); // 第一次 reduce
+        // if (!acc) return map(x => [x], p); // 第一次 reduce
         return mapSeq1(seq1(acc, p));
     }, (src, k) => k([[], src])) as ParserK<ResultTuple>;
 
@@ -184,7 +184,7 @@ export function lazy<T>(ps: () => ParserK<T>): ParserK<T> {
 }
 
 export function more<T>(p: ParserK<T>): ParserK<T[]> {
-    return map(([x, xs]: any) => [x, ...xs], seq(p, many(p)))
+    return map(([x, xs]: [T, T[]]) => [x, ...xs], seq(p, many(p)))
 }
 
 export function makeInfix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {

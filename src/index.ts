@@ -1,8 +1,10 @@
 import { tokenize } from "./lexer/index";
 import util from 'util'
-import { fn, type } from "./parser/parser";
-import { execute } from "./parser/parsek/parsek";
+import { fn, structFields, type } from "./parser/parser";
+import { execute, maybe, none, seq, seq1, some } from "./parser/parsek/parsek";
 import { expr } from "./parser/pratt-parse/expr";
+import { id, operator } from "./parser/parsek/pkutil";
+import { TokenType } from "./lexer/token";
 
 const sampleSrc = `fn main() {
     let numbers: [i32; 3] = [10, 20, 30];
@@ -29,7 +31,8 @@ async function readStdinAll(): Promise<string> {
 }
 
 (async () => {
-    const src = await readStdinAll()
+    // const src = await readStdinAll()
+    const src = `=;`
     // const src = `fn main() { let numbers: [i32; 3] = [10, 20, 30] }`
 
     const tokens = tokenize(src)
@@ -43,7 +46,12 @@ async function readStdinAll(): Promise<string> {
         console.log(...inspected)
     }
 
+    const p = seq1(maybe(operator("=")), id(TokenType.Semicolon))
+    p({ token: tokens, start: 0 }, r => {
+        console.log(r)
+        return r ? some(r) : none()
+    })
     // log(block({ token: tokens, start: 0 }))
-    log(execute(fn, { token: tokens, start: 0 })?.[0])
+    // log(execute(p, { token: tokens, start: 0 })?.[0])
     // console.log(maybe(seq(keyword("let"), maybe(keyword("if")), keyword("else")))({ token: tokens, start: 0 }))
 })()

@@ -30,7 +30,7 @@ export const expr = exprRaw  // TODO: add expression with block
 
 export const unitType: ParserK<ast.Type> = fmap(
     seq(id(TokenType.LeftParen), id(TokenType.RightParen)),
-    _ => ast.unitType);
+    _ => ast.unitType());
 export const typePath: ParserK<ast.TypePath> = fmap(
     or1(id(TokenType.Identifier), keyword("Self")),
     r => ({ kind: ast.ASTType.TypePath, value: typeof r === 'string' ? r : r.raw }))
@@ -116,7 +116,7 @@ export const fn: ParserK<ast.FuncItem> = fmap(
         name: "",
         quantifier: res[0] === null ? [] : ["const"],
         params: [],
-        returnType: res[6] ? res[6][1] : ast.unitType,
+        returnType: res[6] ? res[6][1] : ast.unitType(),
         ...('raw' in res[7] ? {} : { body: res[7] }),
     }))
 
