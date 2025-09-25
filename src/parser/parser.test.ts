@@ -1,17 +1,16 @@
 import { tokenize } from "../lexer"
 import { TokenType } from "../lexer/token"
-import { execute, get, Info, many, maybe, more, none, or1, ParserK, seq, some } from "./parsek/parsek"
+import { execute, get, Info, many, maybe, more, none, or, or1, ParserK, seq, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { associatedItems, constItem, fn, impl, structField, structFields, structItem, trait, type } from "./parser"
 import util from 'util'
 
-/*
 const log = (...args: any[]) => {
     const inspected = args.map(a => util.inspect(a, { depth: null, colors: true }))
     console.log(...inspected)
 }
 
-const succTest = <T>(p: ParserK<T>, src: string, rest?: number, only?: number) => () => {
+const succTestOnly = <T>(p: ParserK<T>, src: string, rest?: number, only?: number) => () => {
     let count = only ?? 1
     let rs: [T, Info][] = []
     if (count < 0)
@@ -19,12 +18,11 @@ const succTest = <T>(p: ParserK<T>, src: string, rest?: number, only?: number) =
         // r = execute(p, { token: tokenize(src), start: 0 })
     else {
         const token = tokenize(src)
-        log(token)
         get(p({ token, start: 0 },
             t => {
                 if (t && t[1].start + (rest ?? 0) == t[1].token.length) {
                     rs.push(t)
-                    log(t)
+                    // log(t)
                 }
                 return ({ succ: false })
             }), null)
@@ -48,12 +46,12 @@ const succTest = <T>(p: ParserK<T>, src: string, rest?: number, only?: number) =
     expect(rs.length).toEqual(count)
     expect(rs.length && rs[0] && rs[0][1].start + (rest ?? 0) == rs[0][1].token.length).toBeTruthy()
 }
-*/
 
-const succTest = <T>(p: ParserK<T>, src: string, rest?: number) => () => {
-    const r = execute(p, { token: tokenize(src), start: 0 })
-    expect(r && r[1].start + (rest ?? 0) == r[1].token.length).toBeTruthy()
-}
+const succTest = succTestOnly
+// const succTest = <T>(p: ParserK<T>, src: string, rest?: number) => () => {
+//     const r = execute(p, { token: tokenize(src), start: 0 })
+//     expect(r && r[1].start + (rest ?? 0) == r[1].token.length).toBeTruthy()
+// }
 const failTest = <T>(p: ParserK<T>, src: string, rest?: number) => () => {
     const r = execute(p, { token: tokenize(src), start: 0 })
     expect(r && r[1].start + (rest ?? 0) == r[1].token.length).toBeFalsy()
@@ -106,14 +104,24 @@ test("impl 1", succTest(impl,
         }
     }`))
 
-// test("parsek 1", succTest(seq(maybe(operator("=")), id(TokenType.Semicolon)), `;`))
-// test("parsek 2", succTest(seq(maybe(operator("=")), id(TokenType.Semicolon)), `=;`))
-// test("parsek 3", succTest(many(or1(keyword("as"), keyword("async"))), `as`))
-// test("parsek 4", succTest(many(or1(constItem, fn)), `const CONST_NO_DEFAULT: i32;`))
-// test("parsek 5", succTest(many(or1(fn, constItem)), `const CONST_NO_DEFAULT: i32;`))
-// test("parsek 6", succTest(many(or1(fn, constItem)), `fn hello() {}`))
-// test("parsek 7", succTest(many(or1(constItem, fn)), `fn hello() {}`))
-// test("parsek 8", succTest(or1(constItem, fn), `const CONST_NO_DEFAULT: i32;`))
-// test("parsek 9", succTest(or1(fn, constItem), `const CONST_NO_DEFAULT: i32;`))
-// test("parsek 10", succTest(or1(fn, constItem), `fn hello() {}`))
-// test("parsek 11", succTest(or1(constItem, fn), `fn hello() {}`))
+test("parsek 1", succTestOnly(seq(maybe(operator("=")), id(TokenType.Semicolon)), `;`))
+test("parsek 2", succTestOnly(seq(maybe(operator("=")), id(TokenType.Semicolon)), `=;`))
+test("parsek 3", succTestOnly(many(or1(keyword("as"), keyword("async"))), `as`))
+test("parsek 4", succTestOnly(many(or1(constItem, fn)), `const CONST_NO_DEFAULT: i32;`))
+test("parsek 5", succTestOnly(many(or1(fn, constItem)), `const CONST_NO_DEFAULT: i32;`))
+test("parsek 6", succTestOnly(many(or1(fn, constItem)), `fn hello() {}`))
+test("parsek 7", succTestOnly(many(or1(constItem, fn)), `fn hello() {}`))
+test("parsek 8", succTestOnly(or1(constItem, fn), `const CONST_NO_DEFAULT: i32;`))
+test("parsek 9", succTestOnly(or1(fn, constItem), `const CONST_NO_DEFAULT: i32;`))
+test("parsek 10", succTestOnly(or1(fn, constItem), `fn hello() {}`))
+test("parsek 11", succTestOnly(or1(constItem, fn), `fn hello() {}`))
+test("parsek 12", succTestOnly(fn, `const fn hello() {}`))
+
+test("parsek 0", succTestOnly(
+    seq(
+        maybe(keyword("extern")),
+        or(seq(maybe(keyword("as")), keyword("const")),
+            seq(keyword("as"), keyword("break")),
+            keyword("as"))),
+    `as`
+))

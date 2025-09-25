@@ -92,14 +92,18 @@ export function seq<
 }
 
 export function or1<A, B>(pa: ParserK<A>, pb: ParserK<B>): ParserK<A | B> {
-    return <M>(src: Info, k: Cont<A | B, M>) =>
-        pa(src, ra => {
-            if (ra) {
-                const rest = k(ra)
-                return rest.succ ? rest : pb(src, k)
-            } else
-                return pb(src, k)
-        })
+    return <M>(src: Info, k: Cont<A | B, M>) => {
+        const r = pa(src, k)
+        return r.succ ? r : pb(src, k)
+    }
+    // return <M>(src: Info, k: Cont<A | B, M>) =>
+    //     pa(src, ra => {
+    //         if (ra) {
+    //             const rest = k(ra)
+    //             return rest.succ ? rest : pb(src, k)
+    //         } else
+    //             return pb(src, k)
+    //     })
 }
 
 export function or<
@@ -115,6 +119,15 @@ export const maybe = <T>(p: ParserK<T>) => or1(skip, p)
 export function many<T>(p: ParserK<T>): ParserK<T[]> {
     return <M>(src: Info, k: Cont<T[], M>) => {
         const result: T[] = []
+        while (true) {
+            const r = p<[T, Info]>(src, r => r ? some(r) : none())
+            if (r.succ) {
+                result.push(r.value[0])
+                src = r.value[1]
+            } else {
+                return k([result, src])
+            }
+        }
         // let rest = src
         // while (true) {
         //     const r = p(rest)
@@ -122,22 +135,22 @@ export function many<T>(p: ParserK<T>): ParserK<T[]> {
         //     result.push(r[0])
         //     rest = r[1]
         // }
-        const loop = (rest: Info): Result<M> => {
-            return p(rest, r => {
-                if (!r)
-                    return k([result, rest])
-                else {
-                    result.push(r[0])
-                    return loop(r[1])
-                }
-            })
-        }
-        return loop(src)
+        // const loop = (rest: Info): Result<M> => {
+        //     return p(rest, r => {
+        //         if (!r)
+        //             return k([result, rest])
+        //         else {
+        //             result.push(r[0])
+        //             return loop(r[1])
+        //         }
+        //     })
+        // }
+        // return loop(src)
     }
 }
 
 // This will try every possible outcome. i.e. ϵ, p, pp, ...
-export function manyL<T>(p: ParserK<T>): ParserK<T[]> {
+function manyL<T>(p: ParserK<T>): ParserK<T[]> {
     return <M>(src: Info, k: Cont<T[], M>) => {
         const result: T[] = []
         const loop = (rest: Info): Result<M> => {
@@ -158,7 +171,7 @@ export function manyL<T>(p: ParserK<T>): ParserK<T[]> {
 }
 
 // This will try every possible outcome, but from more to less. i.e. [..., pp, p, ϵ]
-export function manyR<T>(p: ParserK<T>): ParserK<T[]> {
+function manyR<T>(p: ParserK<T>): ParserK<T[]> {
     return <M>(src: Info, k: Cont<T[], M>) => {
         const result: T[] = []
         const loop = (rest: Info): Result<M> => {
@@ -187,7 +200,7 @@ export function more<T>(p: ParserK<T>): ParserK<T[]> {
     return map(([x, xs]: [T, T[]]) => [x, ...xs], seq(p, many(p)))
 }
 
-export function makeInfix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {
+function makeInfix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {
     return fmap(
         seq(pe, many(seq(pb, pe))),
         // r => [r[0], ...r[1].flat(1)]
@@ -195,7 +208,7 @@ export function makeInfix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {
     );
 }
 
-export function makePrefix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {
+function makePrefix<E, B>(pe: ParserK<E>, pb: ParserK<B>) {
     return fmap(
         seq(many(pb), pe),
         // r => [...r[0], r[1]]

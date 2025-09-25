@@ -1,5 +1,5 @@
 import * as ast from "./ast"
-import { fmap, Info, lazy, many, manyL, map, maybe, more, or, or as or1, ParserK, seq, skip, some } from "./parsek/parsek"
+import { fmap, Info, lazy, many, map, maybe, more, or, or as or1, ParserK, seq, skip, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { Token, TokenType } from "../lexer/token"
 import { expr as exprRaw } from "./pratt-parse/expr"
@@ -105,7 +105,7 @@ export const fn: ParserK<ast.FuncItem> = fmap(
         id(TokenType.LeftParen),
         or1(
             seq(selfParam, maybe(id(TokenType.Comma))),
-            seq(maybe(seq(selfParam, id(TokenType.Comma))), funcParam, maybe(many(seq(id(TokenType.Comma), funcParam))), maybe(id(TokenType.Comma)))
+            seq(maybe(seq(selfParam, id(TokenType.Comma))), funcParam, many(seq(id(TokenType.Comma), funcParam)), maybe(id(TokenType.Comma)))
         ),
         id(TokenType.RightParen),
         maybe(seq(operator("->"), type)),
