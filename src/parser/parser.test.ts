@@ -41,7 +41,7 @@ const succTestOnly = <T>(p: ParserK<T>, src: string, rest?: number, only?: numbe
         //         throw new Error(`Unexpected count ${count}`)
         // }), null)
     }
-    log(rs)
+    // log(rs)
     // expect(rs[0]![0]).toEqual(rs[1]![0])
     expect(rs.length).toEqual(count)
     expect(rs.length && rs[0] && rs[0][1].start + (rest ?? 0) == rs[0][1].token.length).toBeTruthy()

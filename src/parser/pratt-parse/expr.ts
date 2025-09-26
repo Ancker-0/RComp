@@ -62,13 +62,13 @@ function atomExpr(t: Token): ast.Expr {
                 kind: ast.ASTType.PathExpr,
                 segs: [t.raw],
             }
-        case TokenType.Keyword:
-            if (t.raw == "true" || t.raw == "false")
-                return {
-                    kind: ast.ASTType.LiteralExpr,
-                    type: "bool",
-                    value: t.raw,
-                }
+        // case TokenType.Keyword:
+        //     if (t.raw == "true" || t.raw == "false")
+        //         return {
+        //             kind: ast.ASTType.LiteralExpr,
+        //             type: "bool",
+        //             value: t.raw,
+        //         }
         default:
             throw new Error("Hahaha")
     }
@@ -149,6 +149,13 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                         kind: ast.ASTType.BreakExpr,
                     }, { ...src, start }]
                 }
+            case "true":
+            case "false":
+                return [{
+                    kind: ast.ASTType.LiteralExpr,
+                    type: "bool",
+                    value: f.raw,
+                }, { ...src, start } ]
             default:
                 throw new Error(`Unexpected keyword ${f.raw}`)
         }
