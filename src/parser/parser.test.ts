@@ -2,7 +2,7 @@ import { tokenize } from "../lexer"
 import { TokenType } from "../lexer/token"
 import { execute, get, Info, many, maybe, more, none, or, or1, ParserK, seq, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
-import { associatedItems, constItem, fn, impl, structField, structFields, structItem, trait, type } from "./parser"
+import { associatedItems, constItem, expr, exprStatement, fn, impl, loop, structField, structFields, structItem, trait, type } from "./parser"
 import util from 'util'
 
 const log = (...args: any[]) => {
@@ -41,7 +41,7 @@ const succTestOnly = <T>(p: ParserK<T>, src: string, rest?: number, only?: numbe
         //         throw new Error(`Unexpected count ${count}`)
         // }), null)
     }
-    // log(r)
+    log(rs)
     // expect(rs[0]![0]).toEqual(rs[1]![0])
     expect(rs.length).toEqual(count)
     expect(rs.length && rs[0] && rs[0][1].start + (rest ?? 0) == rs[0][1].token.length).toBeTruthy()
@@ -104,6 +104,14 @@ test("impl 1", succTest(impl,
         }
     }`))
 
+test("parsek 0", succTestOnly(
+    seq(
+        maybe(keyword("extern")),
+        or(seq(maybe(keyword("as")), keyword("const")),
+            seq(keyword("as"), keyword("break")),
+            keyword("as"))),
+    `as`
+))
 test("parsek 1", succTestOnly(seq(maybe(operator("=")), id(TokenType.Semicolon)), `;`))
 test("parsek 2", succTestOnly(seq(maybe(operator("=")), id(TokenType.Semicolon)), `=;`))
 test("parsek 3", succTestOnly(many(or1(keyword("as"), keyword("async"))), `as`))
@@ -117,11 +125,26 @@ test("parsek 10", succTestOnly(or1(fn, constItem), `fn hello() {}`))
 test("parsek 11", succTestOnly(or1(constItem, fn), `fn hello() {}`))
 test("parsek 12", succTestOnly(fn, `const fn hello() {}`))
 
-test("parsek 0", succTestOnly(
-    seq(
-        maybe(keyword("extern")),
-        or(seq(maybe(keyword("as")), keyword("const")),
-            seq(keyword("as"), keyword("break")),
-            keyword("as"))),
-    `as`
-))
+test("loop 1", succTest(loop, `
+        loop {
+            break;
+        }
+    `))
+test("loop 2", succTest(fn, `
+    fn main() {
+        loop {
+            break 3
+        }
+    }
+    `))
+test("loop 3", succTest(fn, `
+    fn main() {
+        loop {
+            1 + break 3;
+            break 3 + 1;
+            (break 3) + 1;
+            break (break 1) + (break 2);
+            32
+        }
+    }
+    `))

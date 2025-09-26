@@ -29,6 +29,8 @@ export enum ASTType {
     ArrayExpr,
     RepeatArrayExpr,
     IndexExpr,
+    LoopExpr,
+    BreakExpr,
 
     LetStatement,
     ExprStatement,
@@ -81,7 +83,7 @@ export interface ArrayType extends ASTBase {
 
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | BreakExpr
 export interface CallExpr extends ASTBase {
     kind: ASTType.CallExpr
     value: Expr
@@ -120,6 +122,14 @@ export interface IndexExpr extends ASTBase {
     kind: ASTType.IndexExpr
     arr: Expr
     idx: Expr
+}
+export interface LoopExpr extends ASTBase {
+    kind: ASTType.LoopExpr
+    body: BlockExpr
+}
+export interface BreakExpr extends ASTBase {
+    kind: ASTType.BreakExpr
+    expr?: Expr
 }
 
 export interface EmptyStatement extends ASTBase {

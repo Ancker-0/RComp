@@ -135,6 +135,23 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
             position: "prefix",
         }
         start = rest[1].start
+    } else if (f.type == TokenType.Keyword) {
+        switch (f.raw) {
+            case "break":
+                try {
+                    const rest = parseExpr({ ...src, start }, -Infinity)
+                    return [{
+                        kind: ast.ASTType.BreakExpr,
+                        expr: rest[0],
+                    }, rest[1]]
+                } catch (_) {
+                    return [{
+                        kind: ast.ASTType.BreakExpr,
+                    }, { ...src, start }]
+                }
+            default:
+                throw new Error(`Unexpected keyword ${f.raw}`)
+        }
     } else
         ret = atomExpr(f)
     while (start < token.length) {

@@ -12,7 +12,8 @@ export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identif
     }))
 export const pattern: ParserK<ast.Pattern> = identifierPattern
 
-export const expr = exprRaw  // TODO: add expression with block
+export const exprWithBlock = lazy(() => or(loop))
+export const expr = or(exprRaw, exprWithBlock)  // TODO: add expression with block
 
 // export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
 //     r => {
@@ -58,7 +59,10 @@ export const letStatement: ParserK<ast.LetStatement> = fmap(
 )
 
 export const exprStatement: ParserK<ast.ExprStatement> = fmap(  // TODO: expr with block
-    seq(expr, id(TokenType.Semicolon)),
+    or(
+        seq(exprRaw, id(TokenType.Semicolon)),
+        seq(exprWithBlock, maybe(id(TokenType.Semicolon))),
+    ),
     r => ({
         kind: ast.ASTType.ExprStatement,
         expr: r[0],
@@ -90,6 +94,14 @@ export const block: ParserK<ast.BlockExpr> = fmap(  // TODO
     r => ({
         kind: ast.ASTType.BlockExpr,
         _value: r,
+    })
+)
+
+export const loop: ParserK<ast.LoopExpr> = fmap(
+    seq(keyword("loop"), block),
+    r => ({
+        kind: ast.ASTType.LoopExpr,
+        body: r[1],
     })
 )
 
