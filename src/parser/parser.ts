@@ -1,5 +1,5 @@
 import * as ast from "./ast"
-import { fmap, Info, lazy, many, map, maybe, more, or, or as or1, ParserK, seq, skip, some } from "./parsek/parsek"
+import { fmap, Info, lazy, many, manyL, manyR, map, maybe, more, or, or as or1, ParserK, seq, skip, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { Token, TokenType } from "../lexer/token"
 import { expr as exprRaw } from "./pratt-parse/expr"
@@ -87,13 +87,14 @@ export const statement: ParserK<ast.Statement> = fmap(
 export const block: ParserK<ast.BlockExpr> = fmap(  // TODO
     seq(
         id(TokenType.LeftBrace),
-        maybe(more(statement)),
+        manyL(statement),
         maybe(exprRaw),
         id(TokenType.RightBrace)
     ),
     r => ({
         kind: ast.ASTType.BlockExpr,
-        _value: r,
+        statements: r[1],
+        expr: r[2] ?? undefined,
     })
 )
 

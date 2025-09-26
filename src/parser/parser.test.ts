@@ -10,7 +10,7 @@ const log = (...args: any[]) => {
     console.log(...inspected)
 }
 
-const succTestOnly = <T>(p: ParserK<T>, src: string, rest?: number, only?: number) => () => {
+const succTestOnly = <T>(p: ParserK<T>, src: string, rest?: number, only?: number, callback?: (rs: [T, Info][]) => any) => () => {
     let count = only ?? 1
     let rs: [T, Info][] = []
     if (count < 0)
@@ -41,7 +41,7 @@ const succTestOnly = <T>(p: ParserK<T>, src: string, rest?: number, only?: numbe
         //         throw new Error(`Unexpected count ${count}`)
         // }), null)
     }
-    // log(rs)
+    callback && callback(rs)
     // expect(rs[0]![0]).toEqual(rs[1]![0])
     expect(rs.length).toEqual(count)
     expect(rs.length && rs[0] && rs[0][1].start + (rest ?? 0) == rs[0][1].token.length).toBeTruthy()
@@ -136,7 +136,9 @@ test("loop 2", succTest(fn, `
             break 3
         }
     }
-    `))
+    `, 0, 2, ([r]) => {
+        expect(r && r[0].body?.statements.length == 0).toBeTruthy()
+    }))
 test("loop 3", succTest(fn, `
     fn main() {
         loop {
@@ -147,4 +149,4 @@ test("loop 3", succTest(fn, `
             32
         }
     }
-    `))
+    `, 0, 2))

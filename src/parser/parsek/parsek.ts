@@ -14,7 +14,7 @@ export function next(src: Info, n?: number): Info {
     }
 }
 
-type Result<M> = { succ: true, value: M } | { succ: false }
+export type Result<M> = { succ: true, value: M } | { succ: false }
 export function get<M>(r: Result<M>, defaultV: M) {
     return r.succ? r.value : defaultV
 }
@@ -150,45 +150,72 @@ export function many<T>(p: ParserK<T>): ParserK<T[]> {
 }
 
 // This will try every possible outcome. i.e. ϵ, p, pp, ...
-function manyL<T>(p: ParserK<T>): ParserK<T[]> {
+export function manyL<T>(p: ParserK<T>): ParserK<T[]> {
     return <M>(src: Info, k: Cont<T[], M>) => {
-        const result: T[] = []
-        const loop = (rest: Info): Result<M> => {
-            const t = k([result, rest])
-            if (t.succ)
-                return t;
-            return p(rest, r => {
-                if (!r)
-                    return t
-                else {
-                    result.push(r[0])
-                    return loop(r[1])
-                }
-            })
+        let result: T[] = []
+        while (true) {
+            const t = k([result, src])
+            if (t.succ) return t
+            const r = p<[T, Info]>(src, r => r ? some(r) : none())
+            if (r.succ) {
+                // result.push(r.value[0])
+                result = [...result, r.value[0]]
+                src = r.value[1]
+            } else
+                return none<M>()
         }
-        return loop(src)
+        // const loop = (rest: Info): Result<M> => {
+        //     const t = k([result, rest])
+        //     if (t.succ)
+        //         return t;
+        //     return p(rest, r => {
+        //         if (!r)
+        //             return t
+        //         else {
+        //             result.push(r[0])
+        //             return loop(r[1])
+        //         }
+        //     })
+        // }
+        // return loop(src)
     }
 }
 
 // This will try every possible outcome, but from more to less. i.e. [..., pp, p, ϵ]
-function manyR<T>(p: ParserK<T>): ParserK<T[]> {
+export function manyR<T>(p: ParserK<T>): ParserK<T[]> {
     return <M>(src: Info, k: Cont<T[], M>) => {
-        const result: T[] = []
-        const loop = (rest: Info): Result<M> => {
-            return p(rest, r => {
-                if (!r)
-                    return k([result, rest])
-                else {
-                    result.push(r[0])
-                    const t = loop(r[1])
-                    if (t.succ)
-                        return t;
-                    result.pop()
-                    return k([result, rest])
-                }
-            })
+        const result: [T[], Info][] = [[[], src]]
+        while (true) {
+            const r = p<[T, Info]>(src, r => r ? some(r) : none())
+            if (r.succ) {
+                result.push([[...result[result.length - 1]![0], r.value[0]], r.value[1]])
+                src = r.value[1]
+            } else
+                break
         }
-        return loop(src)
+        while (result.length > 0) {
+            const r = k(result[result.length - 1]!)
+            if (r.succ)
+                return r
+            result.pop()
+        }
+        return none<M>()
+        // const result: T[] = []
+        // const loop = (rest: Info): Result<M> => {
+        //     return p(rest, r => {
+        //         if (!r)
+        //             return k([result, rest])
+        //         else {
+        //             result.push(r[0])
+        //             const t = loop(r[1])
+        //             if (t.succ)
+        //                 return t;
+        //             result.pop()
+        //             return k([result, rest])
+        //         }
+        //     })
+        // }
+        // return loop(src)
     }
 }
 

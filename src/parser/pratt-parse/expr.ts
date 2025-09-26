@@ -1,8 +1,9 @@
 import * as ast from "../ast"
 import { Operator, OperatorToken, Token, TokenType } from "../../lexer/token"
-import { Info as InfoK, next, ParserK } from "../parsek/parsek"
+import { Info as InfoK, next, none, ParserK, Result, some } from "../parsek/parsek"
 import util from 'util'
 import { parse } from "path"
+import { exprWithBlock } from "../parser"
 
 type BindPower = number
 // type Info = InfoK & { power: BindPower }
@@ -156,6 +157,11 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                     type: "bool",
                     value: f.raw,
                 }, { ...src, start } ]
+            case "loop":
+                const r = exprWithBlock<[ast.Expr, Info]>(src, x => x ? some(x) : none())
+                if (!r.succ)
+                    throw new Error(`Unexpected keyword ${f.raw}`)
+                return r.value
             default:
                 throw new Error(`Unexpected keyword ${f.raw}`)
         }

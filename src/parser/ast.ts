@@ -176,6 +176,8 @@ export interface StructField extends ASTBase {
 
 export interface BlockExpr extends ASTBase {
     kind: ASTType.BlockExpr
+    statements: Statement[]
+    expr?: Expr
 }
 
 export interface Trait extends ASTBase {
