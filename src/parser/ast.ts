@@ -201,3 +201,91 @@ export interface TraitImpl extends ASTBase {
     const: ConstItem[]
 }
 
+export type ASTNodes =
+    // Pattern 节点
+    | IdentifierPattern
+    | WildcardPattern
+    | ReferencePattern
+
+    // Type 节点
+    | UnitType
+    | TypePath
+    | ArrayType
+
+    // Expr 节点
+    | LiteralExpr
+    | CallExpr
+    | UnaryExpr
+    | BinaryExpr
+    | PathExpr
+    | ArrayExpr
+    | RepeatArrayExpr
+    | IndexExpr
+    | LoopExpr
+    | BreakExpr
+    | BlockExpr
+
+    // Statement 节点
+    | EmptyStatement
+    | LetStatement
+    | ExprStatement
+
+    // Item 节点
+    | FuncItem
+    | ConstItem
+    | StructItem
+    | StructField
+    | Trait
+    | InherentImpl
+    | TraitImpl
+
+    // 其它
+    | Param
+
+
+type NodeByKind<K extends ASTType> = Extract<ASTNodes, { kind: K }>;
+
+export interface Visitor<R = void> {
+    onLiteralExpr?(node: NodeByKind<ASTType.LiteralExpr>, self: Visitor<R>): R
+    onCallExpr?(node: NodeByKind<ASTType.CallExpr>, self: Visitor<R>): R
+    onUnaryExpr?(node: NodeByKind<ASTType.UnaryExpr>, self: Visitor<R>): R
+    onFn?(node: NodeByKind<ASTType.FnItem>, self: Visitor<R>): R
+    onLet?(node: NodeByKind<ASTType.LetStatement>, self: Visitor<R>): R
+    onBlock?(node: NodeByKind<ASTType.BlockExpr>, self: Visitor<R>): R
+    // TODO
+    default?(node: ASTNodes, self: Visitor<R>): R
+}
+
+export function visit<R = void>(node: ASTNodes, visitor: Visitor<R>): R | undefined {
+  switch (node.kind) {
+    case ASTType.LiteralExpr:
+      return visitor.onLiteralExpr?.(node, visitor)
+    case ASTType.CallExpr:
+      return visitor.onCallExpr?.(node, visitor)
+    case ASTType.UnaryExpr:
+      return visitor.onUnaryExpr?.(node, visitor)
+    case ASTType.FnItem:
+      return visitor.onFn?.(node, visitor)
+    case ASTType.LetStatement:
+      return visitor.onLet?.(node, visitor)
+    case ASTType.BlockExpr:
+      return visitor.onBlock?.(node, visitor)
+    default:
+      return visitor.default?.(node, visitor)
+  }
+}
+
+export function walk<R = void>(node: ASTNodes, visitor: Visitor<R>): (R | undefined)[] {
+    return getChildren(node).map(n => visit(n, visitor))
+}
+
+export function getChildren(node: ASTNodes): ASTNodes[] {
+    return visit<ASTNodes[]>(node, {
+        onLiteralExpr: n => [],
+        onCallExpr: n => [...n.param, n.value],
+        onUnaryExpr: n => [n.operand],
+        onFn: n => [...(n.body ? [n.body] : []), ...n.params, n.returnType],
+        onBlock: n => [...(n.expr ? [n.expr] : []), ...n.statements],
+        default: n => [],
+    }) ?? []
+}

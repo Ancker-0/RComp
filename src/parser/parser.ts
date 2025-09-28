@@ -126,7 +126,7 @@ export const fn: ParserK<ast.FuncItem> = fmap(
     ),
     res => ({
         kind: ast.ASTType.FnItem,
-        name: "",
+        name: res[2].raw,
         quantifier: res[0] === null ? [] : ["const"],
         params: [],
         returnType: res[6] ? res[6][1] : ast.unitType(),
