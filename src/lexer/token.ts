@@ -45,6 +45,7 @@ export enum TokenType {
     Question,
 
     IntegerLiteral,
+    StringLiteral,
 }
 
 export type Location = {
@@ -58,7 +59,12 @@ interface TokenCommon {
 }
 
 type NormalToken = {
-    type: Exclude<TokenType, TokenType.Keyword | TokenType.IntegerLiteral | TokenType.Operator>,
+    type: TokenType.Identifier | TokenType.Literal | TokenType.LeftParen | TokenType.RightParen | TokenType.LeftBracket | TokenType.RightBracket | TokenType.LeftBrace | TokenType.RightBrace | TokenType.Comma | TokenType.Colon | TokenType.Semicolon | TokenType.Question | TokenType.StringLiteral,
+    raw: string
+}
+
+type StringLiteralToken = {
+    type: TokenType.StringLiteral,
     raw: string
 }
 
@@ -81,6 +87,6 @@ type IntegerLiteralToken = {
 }
 
 export type TokenGeneric<T> = T & TokenCommon
-export type TokenSpecific = NormalToken | KeywordToken | IntegerLiteralToken | OperatorToken
+export type TokenSpecific = NormalToken | KeywordToken | IntegerLiteralToken | OperatorToken | StringLiteralToken
 export type Token = TokenCommon & TokenSpecific
-export { NormalToken, KeywordToken, OperatorToken, IntegerLiteralToken }
+export { NormalToken, KeywordToken, OperatorToken, IntegerLiteralToken, StringLiteralToken }

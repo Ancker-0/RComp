@@ -119,11 +119,12 @@ export class Lexer {
 
     private nextToken(): Token {
         // Note that keyword must come before identifier.
-        const scanner: (() => TokenSpecific | null)[] = [this.scanKeyword, this.scanIdentifier, this.scanOperator, this.scanSeperator, this.scanIntegerLiteral]
+        const scanner: (() => TokenSpecific | null)[] = [this.scanKeyword, this.scanIdentifier, this.scanOperator, this.scanSeperator, this.scanIntegerLiteral, this.scanStringLiteral]
         let result = scanner.map(f => f.call(this))
             .reduce((pv, v) => pv ? (v && v.raw.length > pv.raw.length ? v : pv) : v)
         const location: Location = { line: this.line, col: this.col }
         if (!result) {
+            throw new Error(`Unexpected character '${this.src[this.pos]}' at line ${this.line}, column ${this.col}`);
             throw new Error(`Unexpected error Zei3o at line ${this.line}, ${this.col}, ${this.pos}`);
             // if (!this.isEOF())
             //     throw new Error("Unexpected error Zei3o");
@@ -131,9 +132,79 @@ export class Lexer {
         }
         return { ...result, location }
     }
+    
+    private scanStringLiteral(): NormalToken | null {
+        // 处理字符串字面量
+        if (this.src[this.pos] === '"' || this.src[this.pos] === "'") {
+            const quote = this.src[this.pos];
+            let endPos = this.pos + 1;
+            
+            // 查找结束引号
+            while (endPos < this.src.length && this.src[endPos] !== quote) {
+                // 处理转义字符
+                if (this.src[endPos] === '\\' && endPos + 1 < this.src.length) {
+                    endPos += 2;
+                } else {
+                    endPos++;
+                }
+            }
+            
+            if (endPos < this.src.length) {
+                endPos++; // 包含结束引号
+                return {
+                    type: TokenType.StringLiteral,
+                    raw: this.src.slice(this.pos, endPos)
+                };
+            }
+        }
+        return null;
+    }
 
     private skipWhite() {
         while (this.pos < this.src.length) {
+            // 检查是否是单行注释
+            if (this.src.slice(this.pos, this.pos + 2) === '//') {
+                // 跳过注释直到行尾
+                while (this.pos < this.src.length && this.src[this.pos] !== '\n') {
+                    ++this.pos;
+                    ++this.col;
+                }
+                // 继续处理行尾
+                continue;
+            }
+            
+            // 检查是否是多行注释
+            if (this.src.slice(this.pos, this.pos + 2) === '/*') {
+                // 跳过多行注释直到结束标记
+                this.pos += 2;
+                this.col += 2;
+                
+                // 计算嵌套的注释层数
+                let nestingLevel = 1;
+                
+                while (this.pos < this.src.length && nestingLevel > 0) {
+                    if (this.src.slice(this.pos, this.pos + 2) === '/*') {
+                        // 增加嵌套层数
+                        nestingLevel++;
+                        this.pos += 2;
+                        this.col += 2;
+                    } else if (this.src.slice(this.pos, this.pos + 2) === '*/') {
+                        // 减少嵌套层数
+                        nestingLevel--;
+                        this.pos += 2;
+                        this.col += 2;
+                    } else if (this.src[this.pos] === '\n') {
+                        ++this.line;
+                        this.col = 1;
+                        ++this.pos;
+                    } else {
+                        ++this.pos;
+                        ++this.col;
+                    }
+                }
+                continue;
+            }
+            
             switch (this.src[this.pos]) {
                 case '\n':
                     ++this.line
