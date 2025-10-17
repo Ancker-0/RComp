@@ -37,6 +37,7 @@ export enum ASTType {
     WhileExpr,
     IfExpr,
     BreakExpr,
+    ReturnExpr,
     AssignExpr,
     CastExpr,
 
@@ -106,7 +107,7 @@ export interface RefType extends ASTBase {
 
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | CastExpr
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | ReturnExpr | CastExpr
 export interface ExprBase extends ASTBase {
     evaluated?: Evaluated
 }
@@ -166,6 +167,11 @@ export interface IfExpr extends ExprBase {
 }
 export interface BreakExpr extends ExprBase {
     kind: ASTType.BreakExpr
+    expr?: Expr
+}
+
+export interface ReturnExpr extends ExprBase {
+    kind: ASTType.ReturnExpr
     expr?: Expr
 }
 
@@ -270,6 +276,7 @@ export type ASTNode =
     | WhileExpr
     | IfExpr
     | BreakExpr
+    | ReturnExpr
     | CastExpr
     | BlockExpr
 
@@ -312,6 +319,7 @@ export interface Visitor<R = void> {
     onCrate?(node: NodeByKind<ASTType.Crate>, self: Visitor<R>): R
     onConst?(node: NodeByKind<ASTType.ConstItem>, self: Visitor<R>): R
     onExprStatement?(node: NodeByKind<ASTType.ExprStatement>, self: Visitor<R>): R
+    onReturnExpr?(node: NodeByKind<ASTType.ReturnExpr>, self: Visitor<R>): R
     onCastExpr?(node: NodeByKind<ASTType.CastExpr>, self: Visitor<R>): R
     // TODO
     default?(node: ASTNode, self: Visitor<R>): R
@@ -353,6 +361,8 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return visitor.onConst?.(node, visitor)
     case ASTType.ExprStatement:
       return visitor.onExprStatement?.(node, visitor)
+    case ASTType.ReturnExpr:
+      return visitor.onReturnExpr?.(node, visitor)
     case ASTType.CastExpr:
       return visitor.onCastExpr?.(node, visitor)
     default:
@@ -383,6 +393,7 @@ export function getChildren(node: ASTNode): ASTNode[] {
         onCrate: n => n.items,
         onConst: n => [n.type, ...(n.val ? [n.val] : [])],
         onExprStatement: n => [n.expr],
+        onReturnExpr: n => n.expr ? [n.expr] : [],
         onCastExpr: n => [n.expr, n.targetType],
         default: n => [],
     }) ?? []

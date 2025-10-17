@@ -1,9 +1,9 @@
 import * as ast from "../ast"
 import { Operator, OperatorToken, Token, TokenType } from "../../lexer/token"
-import { Info as InfoK, next, none, ParserK, Result, some } from "../parsek/parsek"
+import { Info as InfoK, next, none, ParserK, Result, some, execute } from "../parsek/parsek"
 import util from 'util'
 import { parse } from "path"
-import { exprWithBlock } from "../parser"
+import { exprWithBlock, type as typeParser } from "../parser"
 
 type BindPower = number
 // type Info = InfoK & { power: BindPower }
@@ -203,6 +203,18 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                         kind: ast.ASTType.BreakExpr,
                     }, { ...src, start }]
                 }
+            case "return":
+                try {
+                    const rest = parseExpr({ ...src, start }, -Infinity)
+                    return [{
+                        kind: ast.ASTType.ReturnExpr,
+                        expr: rest[0],
+                    }, rest[1]]
+                } catch (_) {
+                    return [{
+                        kind: ast.ASTType.ReturnExpr,
+                    }, { ...src, start }]
+                }
             case "true":
             case "false":
                 return [{
@@ -297,6 +309,25 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                 ++start
             } else
                 throw new Error("Unmatched paren")
+        } else if (op.type == TokenType.Keyword && op.raw === "as") {
+            // Type cast: expr as Type
+            // Binding power: 10 (between multiplicative and unary, left associative)
+            const lbp = 10
+            if (lbp < gate) {
+                --start
+                break
+            }
+            // Parse the type after 'as'
+            const typeResult = execute(typeParser, { ...src, start })
+            if (!typeResult) {
+                throw new Error("Expected type after 'as'")
+            }
+            ret = {
+                kind: ast.ASTType.CastExpr,
+                expr: ret,
+                targetType: typeResult[0]
+            }
+            start = typeResult[1].start
         } else {
             --start
             break

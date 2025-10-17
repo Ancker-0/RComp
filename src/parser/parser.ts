@@ -154,7 +154,14 @@ const selfParam = or1(
     seq(maybe(operator("&")), maybe(keyword("mut")), keyword("self")),
     seq(maybe(keyword("mut")), keyword("self"), id(TokenType.Colon), type))
 
-const funcParam = skip;
+const funcParam: ParserK<ast.Param> = fmap(
+    seq(pattern, id(TokenType.Colon), type),
+    r => ({
+        kind: ast.ASTType.FnParam,
+        pattern: r[0],
+        type: r[2],
+    })
+)
 
 export const fn: ParserK<ast.FuncItem> = fmap(
     seq(
@@ -168,14 +175,32 @@ export const fn: ParserK<ast.FuncItem> = fmap(
         maybe(seq(operator("->"), type)),
         or1(id(TokenType.Semicolon), block)
     ),
-    res => ({
-        kind: ast.ASTType.FnItem,
-        name: res[2].raw,
-        quantifier: res[0] === null ? [] : ["const"],
-        params: [],
-        returnType: res[6] ? res[6][1] : ast.unitType(),
-        ...('raw' in res[7] ? {} : { body: res[7] }),
-    }))
+    res => {
+        // Extract params from res[4]
+        // res[4] is either:
+        // - [selfParam, maybe(comma)] - just self
+        // - [maybe(selfParam+comma), funcParam, many([comma, funcParam]), maybe(comma)] - regular params
+        let params: ast.Param[] = []
+        const paramsPart = res[4]
+
+        // Check if it's the second form (has funcParam)
+        if (Array.isArray(paramsPart) && paramsPart.length === 4 && paramsPart[1] && 'kind' in paramsPart[1]) {
+            // Second form: regular function parameters
+            const firstParam = paramsPart[1] as ast.Param
+            const restParams = (paramsPart[2] as any[]).map((x: any) => x[1] as ast.Param)
+            params = [firstParam, ...restParams]
+        }
+        // Otherwise it's either empty or self param, which we're not handling yet
+
+        return {
+            kind: ast.ASTType.FnItem,
+            name: res[2].raw,
+            quantifier: res[0] === null ? [] : ["const"],
+            params,
+            returnType: res[6] ? res[6][1] : ast.unitType(),
+            ...('raw' in res[7] ? {} : { body: res[7] }),
+        }
+    })
 
 export const constItem: ParserK<ast.ConstItem> = fmap(
     seq(keyword("const"), id(TokenType.Identifier), id(TokenType.Colon), type, maybe(seq(operator("="), expr)), id(TokenType.Semicolon)),
