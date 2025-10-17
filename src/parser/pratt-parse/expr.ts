@@ -11,21 +11,30 @@ type Info = InfoK
 
 function infixPower(token: OperatorToken): [BindPower, BindPower] {
     switch (token.raw) {
-        case "+":
-        case "-":
-            return [1, 1.5]
+        case "::":
+            return [8, 8.5]
+        case ".":
+            return [6, 6.5]
         case "*":
         case "/":
             return [2, 2.5]
+        case "+":
+        case "-":
+            return [1, 1.5]
+        case "==":
+        case "!=":
+        case ">=":
+        case "<=":
+        case "<":
+        case ">":
+            return [-5, -4.5]
         case "=":
         case "+=":
         case "-=":
         case "*=":
         case "/=":
         case "%=":
-            return [0.5, 0]
-        case ".":
-            return [6, 6.5]
+            return [-9.5, -10]
         default:
             throw Error(`Sorry, unsupported operator ${token.raw}`)
     }
@@ -35,6 +44,7 @@ function prefixPower(token: OperatorToken): [BindPower, BindPower] {
     switch (token.raw) {
         case "+":
         case "-":
+        case "&":
             return [-Infinity, 5]
         default:
             throw Error(`Sorry, unsupported operator ${token.raw}`)
@@ -63,15 +73,17 @@ function atomExpr(t: Token): ast.Expr {
                 kind: ast.ASTType.PathExpr,
                 segs: [t.raw],
             }
-        // case TokenType.Keyword:
-        //     if (t.raw == "true" || t.raw == "false")
-        //         return {
-        //             kind: ast.ASTType.LiteralExpr,
-        //             type: "bool",
-        //             value: t.raw,
-        //         }
+        case TokenType.Keyword:
+            if (t.raw == "true" || t.raw == "false")
+                return {
+                    kind: ast.ASTType.LiteralExpr,
+                    type: "bool",
+                    value: t.raw,
+                }
+            // Fall through to default for other keywords
+            throw new Error(`Unexpected keyword ${t.raw}`)
         default:
-            throw new Error("Hahaha")
+            throw new Error(`Unexpected token type ${t.type}`)
     }
 }
 

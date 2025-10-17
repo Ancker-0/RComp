@@ -5,14 +5,24 @@ import { Token, TokenType } from "../lexer/token"
 import { expr as exprRaw } from "./pratt-parse/expr"
 import { tokenize } from "../lexer"
 
-export const identifierPattern: ParserK<ast.Pattern> = fmap(id(TokenType.Identifier),
+export const identifierPattern: ParserK<ast.IdentifierPattern> = fmap(seq(maybe(keyword("ref")), maybe(keyword("mut")), id(TokenType.Identifier)),
     r => ({
         kind: ast.ASTType.IdentifierPattern,
-        name: r.raw
+        name: r[2].raw,
+        mutable: Boolean(r[1]),
+        ref: Boolean(r[0]),
     }))
-export const pattern: ParserK<ast.Pattern> = identifierPattern
+export const referencePattern: ParserK<ast.ReferencePattern> = fmap(
+    seq(or(operator("&"), operator("&&")), maybe(keyword("mut")), lazy(() => pattern)),
+    r => ({
+        kind: ast.ASTType.ReferencePattern,
+        mutable: Boolean(r[1]),
+        ref: r[0] === "&" ? 1 : 2,
+    })
+)
+export const pattern: ParserK<ast.Pattern> = or(referencePattern, identifierPattern)
 
-export const exprWithBlock = lazy(() => or(loop))
+export const exprWithBlock = lazy(() => or(loop, whileE))
 export const expr = or(exprRaw, exprWithBlock)  // TODO: add expression with block
 
 // export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
@@ -43,7 +53,15 @@ export const arrayType: ParserK<ast.ArrayType> = fmap(
         expr: r[3],
     })
 )
-export const type: ParserK<ast.Type> = or1(or1(unitType, typePath), arrayType)
+export const type: ParserK<ast.Type> = or(unitType, typePath, arrayType, lazy(()=>refType))
+export const refType: ParserK<ast.RefType> = fmap(
+    seq(operator("&"), maybe(keyword("mut")), type),
+    r => ({
+        kind: ast.ASTType.RefType,
+        type: r[2],
+        mutable: Boolean(r[1]),
+    })
+)
 
 export const letStatement: ParserK<ast.LetStatement> = fmap(
     seq(
@@ -103,6 +121,15 @@ export const loop: ParserK<ast.LoopExpr> = fmap(
     r => ({
         kind: ast.ASTType.LoopExpr,
         body: r[1],
+    })
+)
+
+export const whileE: ParserK<ast.WhileExpr> = fmap(
+    seq(keyword("while"), id(TokenType.LeftParen), expr, id(TokenType.RightParen), block),
+    r => ({
+        kind: ast.ASTType.WhileExpr,
+        cond: r[2],
+        body: r[4],
     })
 )
 
@@ -180,15 +207,15 @@ export const associatedItems = fmap(
     })
 )
 
-export const trait: ParserK<ast.Trait> = fmap(
-    seq(
-        keyword("trait"), id(TokenType.Identifier),
-        id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
-    r => ({
-        kind: ast.ASTType.Trait,
-        ...r[3],
-    })
-)
+// export const trait: ParserK<ast.Trait> = fmap(
+//     seq(
+//         keyword("trait"), id(TokenType.Identifier),
+//         id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
+//     r => ({
+//         kind: ast.ASTType.Trait,
+//         ...r[3],
+//     })
+// )
 
 export const inherentImpl: ParserK<ast.InherentImpl> = fmap(
     seq(keyword("impl"), typePath, id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
@@ -198,15 +225,20 @@ export const inherentImpl: ParserK<ast.InherentImpl> = fmap(
         ...r[3],
     })
 )
-export const traitImpl: ParserK<ast.TraitImpl> = fmap(
-    seq(keyword("impl"), id(TokenType.Identifier), keyword("for"), typePath, id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
-    r => ({
-        kind: ast.ASTType.TraitImpl,
-        name: r[1].raw,
-        type: r[3],
-        ...r[5],
-    })
-)
-export const impl = or(inherentImpl, traitImpl)
+// export const traitImpl: ParserK<ast.TraitImpl> = fmap(
+//     seq(keyword("impl"), id(TokenType.Identifier), keyword("for"), typePath, id(TokenType.LeftBrace), associatedItems, id(TokenType.RightBrace)),
+//     r => ({
+//         kind: ast.ASTType.TraitImpl,
+//         name: r[1].raw,
+//         type: r[3],
+//         ...r[5],
+//     })
+// )
+// export const impl = or(inherentImpl, traitImpl)
+export const impl = inherentImpl
 
-export const item: ParserK<ast.Item> = or(fn, constItem, structItem, trait, impl)
+export const item: ParserK<ast.Item> = or(fn, constItem, structItem, /*trait,*/ impl)
+export const crate: ParserK<ast.Crate> = fmap(seq(item), items => ({
+    kind: ast.ASTType.Crate,
+    items,
+}))

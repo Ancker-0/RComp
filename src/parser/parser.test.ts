@@ -2,7 +2,7 @@ import { tokenize } from "../lexer"
 import { TokenType } from "../lexer/token"
 import { execute, get, Info, many, maybe, more, none, or, or1, ParserK, seq, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
-import { associatedItems, constItem, expr, exprStatement, fn, impl, loop, structField, structFields, structItem, trait, type } from "./parser"
+import { associatedItems, constItem, expr, exprStatement, fn, impl, loop, structField, structFields, structItem, type, whileE } from "./parser"
 import util from 'util'
 
 const log = (...args: any[]) => {
@@ -90,12 +90,6 @@ test("const 1", succTest(constItem, `const CONST_NO_DEFAULT: i32;`))
 test("const 2", succTest(constItem, `const CONST_WITH_DEFAULT: i32 = 99;`))
 test("const 3", succTest(constItem, `const WHITE: Color = Color(255, 255, 255);`))
 
-test("trait 1", succTest(trait, `trait Example {
-    const CONST_NO_DEFAULT: i32;
-    const CONST_WITH_DEFAULT: i32 = 99;
-    fn method_without_default(&self);
-    fn method_with_default(&self) {}
-}`))
 
 test("impl 1", succTest(impl,
     `impl Color { const WHITE: Color = Color(255, 255, 255);
@@ -150,3 +144,10 @@ test("loop 3", succTest(fn, `
         }
     }
     `, 0, 2))
+
+test("while 1", succTest(whileE, `
+    while (true) { }
+    `))
+test("while 1", succTest(whileE, `
+    while (n >= 1) { }
+    `))

@@ -1,6 +1,9 @@
 import { KeywordToken, Operator, OperatorToken, Token, TokenGeneric, TokenType } from "../lexer/token"
+import { Evaluated } from "../semantic/const-eval"
 
 export enum ASTType {
+    Crate,
+
     Statement,
     ConstItem,
     FnItem,
@@ -19,6 +22,7 @@ export enum ASTType {
     UnitType,
     TypePath,
     ArrayType,
+    RefType,
 
     BlockExpr,
     LiteralExpr,
@@ -30,7 +34,9 @@ export enum ASTType {
     RepeatArrayExpr,
     IndexExpr,
     LoopExpr,
+    WhileExpr,
     BreakExpr,
+    AssignExpr,
 
     LetStatement,
     ExprStatement,
@@ -46,88 +52,111 @@ export interface ASTBase {
     }
 }
 
+export interface Crate extends ASTBase {
+    kind: ASTType.Crate
+    items: Item[]
+}
+
 export interface Param extends ASTBase {
     kind: ASTType.FnParam
     pattern: Pattern
     type: Type
 }
 
-export type Pattern = IdentifierPattern | WildcardPattern | ReferencePattern
+export type Pattern = IdentifierPattern | /* WildcardPattern |*/  ReferencePattern
 
 export interface IdentifierPattern extends ASTBase {
     kind: ASTType.IdentifierPattern
     name: string
+    mutable: boolean,
+    ref: boolean,
 }
 
-export interface WildcardPattern extends ASTBase {
-    kind: ASTType.WildcardPattern
-}
+// export interface WildcardPattern extends ASTBase {
+//     kind: ASTType.WildcardPattern
+// }
 
 export interface ReferencePattern extends ASTBase {
     kind: ASTType.ReferencePattern
+    mutable: boolean
+    ref: 1 | 2
 }
 
-export type Type = UnitType | TypePath | ArrayType
+export type Type = UnitType | TypePath | ArrayType | RefType
 export interface UnitType extends ASTBase {
     kind: ASTType.UnitType
 }
 export const unitType: () => UnitType = () => ({ kind: ASTType.UnitType })
 export interface TypePath extends ASTBase {
     kind: ASTType.TypePath
+    value: string
 }
 export interface ArrayType extends ASTBase {
     kind: ASTType.ArrayType
     type: Type
     expr: Expr
 }
+export interface RefType extends ASTBase {
+    kind: ASTType.RefType
+    type: Type
+    mutable: boolean
+}
 
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | BreakExpr
-export interface CallExpr extends ASTBase {
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | BreakExpr
+export interface ExprBase extends ASTBase {
+    evaluated?: Evaluated
+}
+export interface CallExpr extends ExprBase {
     kind: ASTType.CallExpr
     value: Expr
     param: Expr[]
 }
-export interface LiteralExpr extends ASTBase {
+export interface LiteralExpr extends ExprBase {
     kind: ASTType.LiteralExpr
     type: "char" | "string" | "rstring" | "cstring" | "rcstring" | "integer" | "bool"
     value: string
 }
-export interface UnaryExpr extends ASTBase {
+export interface UnaryExpr extends ExprBase {
     kind: ASTType.UnaryExpr
     operator: Operator
     operand: Expr
     position: "prefix" | "postfix"
 }
-export interface BinaryExpr extends ASTBase {
+export interface BinaryExpr extends ExprBase {
     kind: ASTType.BinaryExpr
     operator: Operator
     operand: [Expr, Expr]
 }
-export interface PathExpr extends ASTBase {
+export interface PathExpr extends ExprBase {
     kind: ASTType.PathExpr
     segs: string[]
 }
-export interface ArrayExpr extends ASTBase {
+export interface ArrayExpr extends ExprBase {
     kind: ASTType.ArrayExpr
     val: Expr[]
 }
-export interface RepeatArrayExpr extends ASTBase {
+export interface RepeatArrayExpr extends ExprBase {
     kind: ASTType.RepeatArrayExpr
     val: Expr
     repeat: Expr
 }
-export interface IndexExpr extends ASTBase {
+export interface IndexExpr extends ExprBase {
     kind: ASTType.IndexExpr
     arr: Expr
     idx: Expr
 }
-export interface LoopExpr extends ASTBase {
+export interface LoopExpr extends ExprBase {
     kind: ASTType.LoopExpr
     body: BlockExpr
 }
-export interface BreakExpr extends ASTBase {
+export interface WhileExpr extends ExprBase {
+    kind: ASTType.WhileExpr
+    cond: Expr
+    body: BlockExpr
+}
+export interface BreakExpr extends ExprBase {
     kind: ASTType.BreakExpr
     expr?: Expr
 }
@@ -148,7 +177,7 @@ export interface ExprStatement extends ASTBase {
     expr: Expr
 }
 
-export type Item = FuncItem | ConstItem | StructItem | Trait | Impl
+export type Item = FuncItem | ConstItem | StructItem | /* Trait | */ Impl
 export interface FuncItem extends ASTBase {
     kind: ASTType.FnItem
     name: string
@@ -162,6 +191,7 @@ export interface ConstItem extends ASTBase {
     name: string
     type: Type
     val?: Expr
+    evaluated?: Evaluated
 }
 export interface StructItem extends ASTBase {
     kind: ASTType.StructItem
@@ -180,37 +210,38 @@ export interface BlockExpr extends ASTBase {
     expr?: Expr
 }
 
-export interface Trait extends ASTBase {
-    kind: ASTType.Trait
-    fn: FuncItem[]
-    const: ConstItem[]
-}
+// export interface Trait extends ASTBase {
+//     kind: ASTType.Trait
+//     fn: FuncItem[]
+//     const: ConstItem[]
+// }
 
-export type Impl = InherentImpl | TraitImpl
+export type Impl = InherentImpl
 export interface InherentImpl extends ASTBase {
     kind: ASTType.InherentImpl
     type: TypePath
     fn: FuncItem[]
     const: ConstItem[]
 }
-export interface TraitImpl extends ASTBase {
-    kind: ASTType.TraitImpl
-    type: TypePath
-    name: string
-    fn: FuncItem[]
-    const: ConstItem[]
-}
+// export interface TraitImpl extends ASTBase {
+//     kind: ASTType.TraitImpl
+//     type: TypePath
+//     name: string
+//     fn: FuncItem[]
+//     const: ConstItem[]
+// }
 
-export type ASTNodes =
+export type ASTNode =
     // Pattern 节点
     | IdentifierPattern
-    | WildcardPattern
+    /*| WildcardPattern*/
     | ReferencePattern
 
     // Type 节点
     | UnitType
     | TypePath
     | ArrayType
+    | RefType
 
     // Expr 节点
     | LiteralExpr
@@ -222,6 +253,7 @@ export type ASTNodes =
     | RepeatArrayExpr
     | IndexExpr
     | LoopExpr
+    | WhileExpr
     | BreakExpr
     | BlockExpr
 
@@ -235,28 +267,37 @@ export type ASTNodes =
     | ConstItem
     | StructItem
     | StructField
-    | Trait
+    /* | Trait */
     | InherentImpl
-    | TraitImpl
+    /* | TraitImpl *///  No such thing!
 
     // 其它
     | Param
+    | Crate
 
 
-type NodeByKind<K extends ASTType> = Extract<ASTNodes, { kind: K }>;
+export type NodeByKind<K extends ASTType> = Extract<ASTNode, { kind: K }>;
 
 export interface Visitor<R = void> {
     onLiteralExpr?(node: NodeByKind<ASTType.LiteralExpr>, self: Visitor<R>): R
     onCallExpr?(node: NodeByKind<ASTType.CallExpr>, self: Visitor<R>): R
     onUnaryExpr?(node: NodeByKind<ASTType.UnaryExpr>, self: Visitor<R>): R
+    onBinaryExpr?(node: NodeByKind<ASTType.BinaryExpr>, self: Visitor<R>): R
+    onPathExpr?(node: NodeByKind<ASTType.PathExpr>, self: Visitor<R>): R
+    onArrayExpr?(node: NodeByKind<ASTType.ArrayExpr>, self: Visitor<R>): R
+    onRepeatArrayExpr?(node: NodeByKind<ASTType.RepeatArrayExpr>, self: Visitor<R>): R
+    onIndexExpr?(node: NodeByKind<ASTType.IndexExpr>, self: Visitor<R>): R
     onFn?(node: NodeByKind<ASTType.FnItem>, self: Visitor<R>): R
     onLet?(node: NodeByKind<ASTType.LetStatement>, self: Visitor<R>): R
     onBlock?(node: NodeByKind<ASTType.BlockExpr>, self: Visitor<R>): R
+    onCrate?(node: NodeByKind<ASTType.Crate>, self: Visitor<R>): R
+    onConst?(node: NodeByKind<ASTType.ConstItem>, self: Visitor<R>): R
+    onExprStatement?(node: NodeByKind<ASTType.ExprStatement>, self: Visitor<R>): R
     // TODO
-    default?(node: ASTNodes, self: Visitor<R>): R
+    default?(node: ASTNode, self: Visitor<R>): R
 }
 
-export function visit<R = void>(node: ASTNodes, visitor: Visitor<R>): R | undefined {
+export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefined {
   switch (node.kind) {
     case ASTType.LiteralExpr:
       return visitor.onLiteralExpr?.(node, visitor)
@@ -264,28 +305,53 @@ export function visit<R = void>(node: ASTNodes, visitor: Visitor<R>): R | undefi
       return visitor.onCallExpr?.(node, visitor)
     case ASTType.UnaryExpr:
       return visitor.onUnaryExpr?.(node, visitor)
+    case ASTType.BinaryExpr:
+      return visitor.onBinaryExpr?.(node, visitor)
+    case ASTType.PathExpr:
+      return visitor.onPathExpr?.(node, visitor)
+    case ASTType.ArrayExpr:
+      return visitor.onArrayExpr?.(node, visitor)
+    case ASTType.RepeatArrayExpr:
+      return visitor.onRepeatArrayExpr?.(node, visitor)
+    case ASTType.IndexExpr:
+      return visitor.onIndexExpr?.(node, visitor)
     case ASTType.FnItem:
       return visitor.onFn?.(node, visitor)
     case ASTType.LetStatement:
       return visitor.onLet?.(node, visitor)
     case ASTType.BlockExpr:
       return visitor.onBlock?.(node, visitor)
+    case ASTType.Crate:
+      return visitor.onCrate?.(node, visitor)
+    case ASTType.ConstItem:
+      return visitor.onConst?.(node, visitor)
+    case ASTType.ExprStatement:
+      return visitor.onExprStatement?.(node, visitor)
     default:
       return visitor.default?.(node, visitor)
   }
 }
 
-export function walk<R = void>(node: ASTNodes, visitor: Visitor<R>): (R | undefined)[] {
+export function walk<R = void>(node: ASTNode, visitor: Visitor<R>): (R | undefined)[] {
     return getChildren(node).map(n => visit(n, visitor))
 }
 
-export function getChildren(node: ASTNodes): ASTNodes[] {
-    return visit<ASTNodes[]>(node, {
+export function getChildren(node: ASTNode): ASTNode[] {
+    return visit<ASTNode[]>(node, {
         onLiteralExpr: n => [],
         onCallExpr: n => [...n.param, n.value],
         onUnaryExpr: n => [n.operand],
+        onBinaryExpr: n => n.operand,
+        onPathExpr: n => [],
+        onArrayExpr: n => n.val,
+        onRepeatArrayExpr: n => [n.val, n.repeat],
+        onIndexExpr: n => [n.arr, n.idx],
         onFn: n => [...(n.body ? [n.body] : []), ...n.params, n.returnType],
+        onLet: n => [n.pattern, n.type, ...(n.expr ? [n.expr] : [])],
         onBlock: n => [...(n.expr ? [n.expr] : []), ...n.statements],
+        onCrate: n => n.items,
+        onConst: n => [n.type, ...(n.val ? [n.val] : [])],
+        onExprStatement: n => [n.expr],
         default: n => [],
     }) ?? []
 }
