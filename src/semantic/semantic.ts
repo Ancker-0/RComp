@@ -454,7 +454,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       const declaredSizeEval = evaluateExpr(declaredType.expr);
       if (declaredSizeEval && typeof declaredSizeEval.value === 'number') {
         const declaredSize = declaredSizeEval.value;
-        
+
         // 检查初始化表达式的类型
         if (initExpr.kind === ast.ASTType.ArrayExpr) {
           // 普通数组初始化 [1, 2, 3]
@@ -466,7 +466,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
             );
             return;
           }
-          
+
           // 递归检查多维数组的元素
           // 检查每个元素是否与声明的元素类型匹配
           for (let i = 0; i < initExpr.val.length; i++) {
@@ -485,12 +485,59 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
               );
               return;
             }
-            
+
             // 递归检查重复数组的元素
             this.checkArrayDimensions(declaredType.type, initExpr.val, node);
           }
         }
       }
     }
+  }
+
+  // 处理 if 表达式
+  onIf(node: ast.NodeByKind<ast.ASTType.IfExpr>, self: ast.Visitor<void>): void {
+    // 分析条件表达式
+    this.visit(node.cond, self);
+
+    // 检查条件表达式的类型是否为 bool
+    const condType = inferType(node.cond);
+    if (condType.kind !== "primitiveType" || condType.name !== "bool") {
+      this.reportError(
+        `If condition must be of type bool, found ${this.typeToString(condType)}`,
+        node.cond
+      );
+    }
+
+    // 分析 then 分支
+    this.visit(node.then, self);
+
+    // 分析 else 分支（如果存在）
+    if (node.else) {
+      this.visit(node.else, self);
+    }
+  }
+
+  // 处理 while 表达式
+  onWhile(node: ast.NodeByKind<ast.ASTType.WhileExpr>, self: ast.Visitor<void>): void {
+    // 分析条件表达式
+    this.visit(node.cond, self);
+
+    // 检查条件表达式的类型是否为 bool
+    const condType = inferType(node.cond);
+    if (condType.kind !== "primitiveType" || condType.name !== "bool") {
+      this.reportError(
+        `While condition must be of type bool, found ${this.typeToString(condType)}`,
+        node.cond
+      );
+    }
+
+    // 分析循环体
+    this.visit(node.body, self);
+  }
+
+  // 处理 loop 表达式
+  onLoop(node: ast.NodeByKind<ast.ASTType.LoopExpr>, self: ast.Visitor<void>): void {
+    // 分析循环体
+    this.visit(node.body, self);
   }
 }

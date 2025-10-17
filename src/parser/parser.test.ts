@@ -2,7 +2,7 @@ import { tokenize } from "../lexer"
 import { TokenType } from "../lexer/token"
 import { execute, get, Info, many, maybe, more, none, or, or1, ParserK, seq, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
-import { associatedItems, constItem, expr, exprStatement, fn, impl, loop, structField, structFields, structItem, type, whileE } from "./parser"
+import { associatedItems, constItem, expr, exprStatement, fn, ifE, impl, loop, structField, structFields, structItem, type, whileE } from "./parser"
 import util from 'util'
 
 const log = (...args: any[]) => {
@@ -148,6 +148,48 @@ test("loop 3", succTest(fn, `
 test("while 1", succTest(whileE, `
     while (true) { }
     `))
-test("while 1", succTest(whileE, `
+test("while 2", succTest(whileE, `
     while (n >= 1) { }
     `))
+
+test("if 1", succTest(ifE, `
+    if (true) { }
+    `))
+test("if 2", succTest(ifE, `
+    if (x > 0) { x = 1 }
+    `))
+test("if 3", succTest(ifE, `
+    if (x > 0) { x = 1 } else { x = -1 }
+    `))
+test("if 4", succTest(ifE, `
+    if (x > 0) {
+        x = 1
+    } else if (x < 0) {
+        x = -1
+    } else {
+        x = 0
+    }
+    `))
+test("if 5", succTest(ifE, `
+    if (a == b) {
+        x = a
+    }
+    `))
+test("if 6", succTest(fn, `
+    fn test() -> i32 {
+        if (true) { 1 } else { 0 }
+    }
+    `))
+test("if 7", failTest(ifE, `if (true) 1`))  // 必须有 block
+test("if 8", failTest(ifE, `if true { }`))  // 必须有括号
+
+// Test new operators
+test("expr &&", succTest(expr, `a && b`))
+test("expr ||", succTest(expr, `a || b`))
+test("expr %", succTest(expr, `a % b`))
+test("expr <<", succTest(expr, `a << b`))
+test("expr >>", succTest(expr, `a >> b`))
+test("expr ^", succTest(expr, `a ^ b`))
+test("expr |", succTest(expr, `a | b`))
+test("expr complex", succTest(expr, `a == b && b == c`))
+test("expr precedence", succTest(expr, `a + b * c == d && e || f`))

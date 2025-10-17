@@ -84,25 +84,30 @@ async function runSemantic1Tests(testPattern?: string) {
       
       // 进行语法分析
       const parsed = execute(crate, { token: tokens, start: 0 });
-      
+
+      // 检查测试用例的预期结果
+      const metadata = parseTestMetadata(sourceCode);
+
       if (!parsed) {
-        console.log(`❌ ${testDir}: 语法分析失败`);
-        console.log(sourceCode)
-        console.log(tokens)
-        return
-        failed++;
+        // 语法分析失败，将其视为错误
+        if (metadata.verdict === "Success" || metadata.verdict === "Pass") {
+          console.log(`❌ ${testDir}: 失败 (预期成功，但语法分析失败)`);
+          failed++;
+        } else if (metadata.verdict === "Fail") {
+          console.log(`✅ ${testDir}: 通过 (预期失败，语法分析失败)`);
+          passed++;
+        } else {
+          console.log(`⚠️  ${testDir}: 语法分析失败 (未知预期结果 "${metadata.verdict}")`);
+        }
         continue;
       }
-      
+
       const [crateNode] = parsed as [any, any];
-      
+
       // 进行语义分析
       const analyzer = new SemanticAnalyzer();
       const result = analyzer.analyze(crateNode);
-      
-      // 检查测试用例的预期结果
-      const metadata = parseTestMetadata(sourceCode);
-      
+
       // 根据预期结果判断测试是否通过
       if (metadata.verdict === "Success" || metadata.verdict === "Pass") {
         if (result.errors.length === 0) {

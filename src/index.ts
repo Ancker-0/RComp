@@ -50,23 +50,36 @@ async function readStdinAll(): Promise<string> {
     // log(block({ token: tokens, start: 0 }))
     const parsed = execute(crate, { token: tokens, start: 0 });
     if (parsed) {
-      const [crateNode] = parsed;
-      log("Parsed AST:", crateNode);
-      
+      const [crateNode, info] = parsed;
+
+      // 检查是否解析了所有 tokens
+      if (info.start < info.token.length) {
+        console.log(`Warning: Only parsed ${info.start} of ${info.token.length} tokens`);
+        console.log(`Remaining tokens starting at:`, info.token.slice(info.start, info.start + 5));
+      } else {
+        console.log(`Successfully parsed all ${info.token.length} tokens`);
+      }
+
+      // log("Parsed AST:", crateNode);
+
       // 进行语义分析
       const analyzer = new SemanticAnalyzer();
       const result = analyzer.analyze(crateNode);
-      
+
       // 输出语义分析结果
+      console.log("\n=== Semantic Analysis Results ===");
       if (result.errors.length > 0) {
-        console.log("Semantic errors:");
+        console.log(`Found ${result.errors.length} error(s):`);
         for (const error of result.errors) {
           console.log(`  - ${error.message}`);
         }
       } else {
-        console.log("Semantic analysis completed successfully with no errors.");
+        console.log("✓ No semantic errors found");
       }
-    } else
-      log(tokens)
+    } else {
+      console.log("Parse failed!");
+      console.log("First 10 tokens:");
+      log(tokens.slice(0, 10))
+    }
     // console.log(maybe(seq(keyword("let"), maybe(keyword("if")), keyword("else")))({ token: tokens, start: 0 }))
 })()

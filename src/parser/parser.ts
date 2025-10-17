@@ -22,7 +22,7 @@ export const referencePattern: ParserK<ast.ReferencePattern> = fmap(
 )
 export const pattern: ParserK<ast.Pattern> = or(referencePattern, identifierPattern)
 
-export const exprWithBlock = lazy(() => or(loop, whileE))
+export const exprWithBlock = lazy(() => or(loop, whileE, ifE))
 export const expr = or(exprRaw, exprWithBlock)  // TODO: add expression with block
 
 // export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
@@ -106,7 +106,7 @@ export const block: ParserK<ast.BlockExpr> = fmap(  // TODO
     seq(
         id(TokenType.LeftBrace),
         manyL(statement),
-        maybe(exprRaw),
+        maybe(expr),
         id(TokenType.RightBrace)
     ),
     r => ({
@@ -130,6 +130,23 @@ export const whileE: ParserK<ast.WhileExpr> = fmap(
         kind: ast.ASTType.WhileExpr,
         cond: r[2],
         body: r[4],
+    })
+)
+
+export const ifE: ParserK<ast.IfExpr> = fmap(
+    seq(
+        keyword("if"),
+        id(TokenType.LeftParen),
+        expr,
+        id(TokenType.RightParen),
+        block,
+        maybe(seq(keyword("else"), or(lazy(() => ifE), block)))
+    ),
+    r => ({
+        kind: ast.ASTType.IfExpr,
+        cond: r[2],
+        then: r[4],
+        ...(r[5] && { else: r[5][1] })
     })
 )
 
@@ -238,7 +255,7 @@ export const inherentImpl: ParserK<ast.InherentImpl> = fmap(
 export const impl = inherentImpl
 
 export const item: ParserK<ast.Item> = or(fn, constItem, structItem, /*trait,*/ impl)
-export const crate: ParserK<ast.Crate> = fmap(seq(item), items => ({
+export const crate: ParserK<ast.Crate> = fmap(more(item), items => ({
     kind: ast.ASTType.Crate,
     items,
 }))

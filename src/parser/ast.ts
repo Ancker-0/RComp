@@ -35,8 +35,10 @@ export enum ASTType {
     IndexExpr,
     LoopExpr,
     WhileExpr,
+    IfExpr,
     BreakExpr,
     AssignExpr,
+    CastExpr,
 
     LetStatement,
     ExprStatement,
@@ -104,7 +106,7 @@ export interface RefType extends ASTBase {
 
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | BreakExpr
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | CastExpr
 export interface ExprBase extends ASTBase {
     evaluated?: Evaluated
 }
@@ -156,9 +158,21 @@ export interface WhileExpr extends ExprBase {
     cond: Expr
     body: BlockExpr
 }
+export interface IfExpr extends ExprBase {
+    kind: ASTType.IfExpr
+    cond: Expr
+    then: BlockExpr
+    else?: BlockExpr | IfExpr
+}
 export interface BreakExpr extends ExprBase {
     kind: ASTType.BreakExpr
     expr?: Expr
+}
+
+export interface CastExpr extends ExprBase {
+    kind: ASTType.CastExpr
+    expr: Expr
+    targetType: Type
 }
 
 export interface EmptyStatement extends ASTBase {
@@ -254,7 +268,9 @@ export type ASTNode =
     | IndexExpr
     | LoopExpr
     | WhileExpr
+    | IfExpr
     | BreakExpr
+    | CastExpr
     | BlockExpr
 
     // Statement 节点
@@ -290,9 +306,13 @@ export interface Visitor<R = void> {
     onFn?(node: NodeByKind<ASTType.FnItem>, self: Visitor<R>): R
     onLet?(node: NodeByKind<ASTType.LetStatement>, self: Visitor<R>): R
     onBlock?(node: NodeByKind<ASTType.BlockExpr>, self: Visitor<R>): R
+    onLoop?(node: NodeByKind<ASTType.LoopExpr>, self: Visitor<R>): R
+    onWhile?(node: NodeByKind<ASTType.WhileExpr>, self: Visitor<R>): R
+    onIf?(node: NodeByKind<ASTType.IfExpr>, self: Visitor<R>): R
     onCrate?(node: NodeByKind<ASTType.Crate>, self: Visitor<R>): R
     onConst?(node: NodeByKind<ASTType.ConstItem>, self: Visitor<R>): R
     onExprStatement?(node: NodeByKind<ASTType.ExprStatement>, self: Visitor<R>): R
+    onCastExpr?(node: NodeByKind<ASTType.CastExpr>, self: Visitor<R>): R
     // TODO
     default?(node: ASTNode, self: Visitor<R>): R
 }
@@ -321,12 +341,20 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return visitor.onLet?.(node, visitor)
     case ASTType.BlockExpr:
       return visitor.onBlock?.(node, visitor)
+    case ASTType.LoopExpr:
+      return visitor.onLoop?.(node, visitor)
+    case ASTType.WhileExpr:
+      return visitor.onWhile?.(node, visitor)
+    case ASTType.IfExpr:
+      return visitor.onIf?.(node, visitor)
     case ASTType.Crate:
       return visitor.onCrate?.(node, visitor)
     case ASTType.ConstItem:
       return visitor.onConst?.(node, visitor)
     case ASTType.ExprStatement:
       return visitor.onExprStatement?.(node, visitor)
+    case ASTType.CastExpr:
+      return visitor.onCastExpr?.(node, visitor)
     default:
       return visitor.default?.(node, visitor)
   }
@@ -349,9 +377,13 @@ export function getChildren(node: ASTNode): ASTNode[] {
         onFn: n => [...(n.body ? [n.body] : []), ...n.params, n.returnType],
         onLet: n => [n.pattern, n.type, ...(n.expr ? [n.expr] : [])],
         onBlock: n => [...(n.expr ? [n.expr] : []), ...n.statements],
+        onLoop: n => [n.body],
+        onWhile: n => [n.cond, n.body],
+        onIf: n => [n.cond, n.then, ...(n.else ? [n.else] : [])],
         onCrate: n => n.items,
         onConst: n => [n.type, ...(n.val ? [n.val] : [])],
         onExprStatement: n => [n.expr],
+        onCastExpr: n => [n.expr, n.targetType],
         default: n => [],
     }) ?? []
 }

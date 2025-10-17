@@ -11,30 +11,73 @@ type Info = InfoK
 
 function infixPower(token: OperatorToken): [BindPower, BindPower] {
     switch (token.raw) {
+        // Paths (highest precedence)
         case "::":
-            return [8, 8.5]
+            return [14, 14.5]
+
+        // Field access
         case ".":
-            return [6, 6.5]
+            return [13, 13.5]
+
+        // Multiplicative operators
         case "*":
         case "/":
-            return [2, 2.5]
+        case "%":
+            return [9, 9.5]
+
+        // Additive operators
         case "+":
         case "-":
-            return [1, 1.5]
+            return [8, 8.5]
+
+        // Shift operators
+        case "<<":
+        case ">>":
+            return [7, 7.5]
+
+        // Bitwise AND
+        case "&":
+            return [6, 6.5]
+
+        // Bitwise XOR
+        case "^":
+            return [5, 5.5]
+
+        // Bitwise OR
+        case "|":
+            return [4, 4.5]
+
+        // Comparison operators
         case "==":
         case "!=":
-        case ">=":
-        case "<=":
         case "<":
         case ">":
-            return [-5, -4.5]
+        case "<=":
+        case ">=":
+            return [3, 3.5]
+
+        // Logical AND
+        case "&&":
+            return [2, 2.5]
+
+        // Logical OR
+        case "||":
+            return [1, 1.5]
+
+        // Assignment operators (right associative - lower right binding power)
         case "=":
         case "+=":
         case "-=":
         case "*=":
         case "/=":
         case "%=":
-            return [-9.5, -10]
+        case "&=":
+        case "|=":
+        case "^=":
+        case "<<=":
+        case ">>=":
+            return [0.5, 0]
+
         default:
             throw Error(`Sorry, unsupported operator ${token.raw}`)
     }
@@ -42,22 +85,20 @@ function infixPower(token: OperatorToken): [BindPower, BindPower] {
 
 function prefixPower(token: OperatorToken): [BindPower, BindPower] {
     switch (token.raw) {
-        case "+":
+        // Unary operators (higher than multiplicative)
         case "-":
+        case "!":
+        case "*":
         case "&":
-            return [-Infinity, 5]
+            return [-Infinity, 11]
         default:
             throw Error(`Sorry, unsupported operator ${token.raw}`)
     }
 }
 
 function postfixPower(token: OperatorToken): [BindPower, BindPower] {
-    switch (token.raw) {
-        case "!":
-            return [5, -Infinity]
-        default:
-            throw Error(`Sorry, unsupported operator ${token.raw}`)
-    }
+    // Currently no postfix operators are supported
+    throw Error(`Sorry, unsupported postfix operator ${token.raw}`)
 }
 
 function atomExpr(t: Token): ast.Expr {
@@ -169,11 +210,11 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                     type: "bool",
                     value: f.raw,
                 }, { ...src, start } ]
-            case "loop":
-                const r = exprWithBlock<[ast.Expr, Info]>(src, x => x ? some(x) : none())
-                if (!r.succ)
-                    throw new Error(`Unexpected keyword ${f.raw}`)
-                return r.value
+            // case "loop":
+            //     const r = exprWithBlock<[ast.Expr, Info]>(src, x => x ? some(x) : none())
+            //     if (!r.succ)
+            //         throw new Error(`Unexpected keyword ${f.raw}`)
+            //     return r.value
             default:
                 throw new Error(`Unexpected keyword ${f.raw}`)
         }
