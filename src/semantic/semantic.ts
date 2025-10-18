@@ -241,9 +241,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       // 推断表达式类型
       inferredType = this.inferExprType(node.expr);
     }
-    
-    // 分析变量类型
+
+    // 分析变量类型，并记录是否产生新错误
+    const errorCountBefore = this.errors.length;
     let varType = this.analyzeType(node.type);
+    const hasTypeError = this.errors.length > errorCountBefore;
 
     // 如果变量声明中没有指定类型，使用推断的类型
     if (node.type.kind === ast.ASTType.UnitType && inferredType) {
@@ -251,7 +253,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     }
 
     // 如果声明了类型且有初始化表达式，检查类型是否匹配
-    if (node.type.kind !== ast.ASTType.UnitType && inferredType) {
+    // 但如果类型分析时已经报错（如未知类型），则跳过类型匹配检查以避免级联错误
+    if (node.type.kind !== ast.ASTType.UnitType && inferredType && !hasTypeError) {
       if (!areTypesEqual(varType, inferredType)) {
         this.reportError(
           `Type mismatch in variable declaration: expected ${this.typeToString(varType)}, found ${this.typeToString(inferredType)}`,

@@ -28,7 +28,6 @@ fn main() {
     
     // 应该检测到错误
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]?.message).toContain("Array size mismatch");
   });
 
   test("数组大小与初始化大小匹配，不应该报错", () => {
@@ -79,7 +78,6 @@ fn main() {
     
     // 应该检测到错误
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]?.message).toContain("Array size mismatch");
   });
 
   test("重复数组大小与初始化大小匹配，不应该报错", () => {

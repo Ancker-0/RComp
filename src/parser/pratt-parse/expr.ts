@@ -86,6 +86,7 @@ function infixPower(token: OperatorToken): [BindPower, BindPower] {
 function prefixPower(token: OperatorToken): [BindPower, BindPower] {
     switch (token.raw) {
         // Unary operators (higher than multiplicative)
+        case "+":
         case "-":
         case "!":
         case "*":
