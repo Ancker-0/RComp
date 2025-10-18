@@ -105,10 +105,15 @@ function postfixPower(token: OperatorToken): [BindPower, BindPower] {
 function atomExpr(t: Token): ast.Expr {
     switch (t.type) {
         case TokenType.IntegerLiteral:
+            // Extract numeric value (without suffix) and suffix separately
+            const numericValue = t.suf.length > 0
+                ? t.raw.substring(0, t.raw.length - t.suf.length)
+                : t.raw;
             return {
                 kind: ast.ASTType.LiteralExpr,
                 type: "integer",
-                value: t.raw
+                value: numericValue,
+                suffix: t.suf.length > 0 ? t.suf : undefined
             }
         case TokenType.Identifier:
             return {

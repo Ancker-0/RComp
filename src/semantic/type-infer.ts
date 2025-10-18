@@ -1,4 +1,4 @@
-import { Type, unitType, i32Type, boolType } from "./info";
+import { Type, unitType, i32Type, u32Type, usizeType, isizeType, integerType, boolType } from "./info";
 import * as ast from "../parser/ast";
 
 // 类型推断函数
@@ -46,21 +46,38 @@ export function inferType(expr: ast.Expr): Type {
   }
 }
 
-// 推断字面量类型
+// Infer literal type
 function inferLiteralType(literal: ast.LiteralExpr): Type {
   switch (literal.type) {
     case "integer":
-      return i32Type();
-    
+      // Use suffix to determine integer type
+      switch (literal.suffix) {
+        case "u32":
+          return u32Type();
+        case "usize":
+          return usizeType();
+        case "isize":
+          return isizeType();
+        case "i32":
+          return i32Type();
+        case undefined:
+        case "":
+          // No suffix: return unspecialized integer type
+          return integerType();
+        default:
+          // This should never happen as lexer validates suffixes
+          throw new Error(`Unknown integer suffix: ${literal.suffix}`);
+      }
+
     case "bool":
       return boolType();
-    
+
     case "char":
       return {
         kind: "primitiveType",
         name: "char"
       };
-    
+
     case "string":
     case "rstring":
     case "cstring":
@@ -69,7 +86,7 @@ function inferLiteralType(literal: ast.LiteralExpr): Type {
         kind: "primitiveType",
         name: "str"
       };
-    
+
     default:
       return unitType();
   }
@@ -128,22 +145,49 @@ function inferIndexType(index: ast.IndexExpr): Type {
   return unitType();
 }
 
-// 推断二元表达式类型
+// Infer binary expression type
 function inferBinaryType(binary: ast.BinaryExpr): Type {
-  // 比较运算符返回 bool 类型
+  // Comparison operators return bool type
   const comparisonOps = ["==", "!=", "<", ">", "<=", ">="];
   if (comparisonOps.includes(binary.operator)) {
     return boolType();
   }
 
-  // 逻辑运算符返回 bool 类型
+  // Logical operators return bool type
   if (binary.operator === "&&" || binary.operator === "||") {
     return boolType();
   }
 
-  // 算术和位运算符返回操作数类型
-  // TODO: 更精确的类型推断（考虑类型提升等）
-  return inferType(binary.operand[0]!);
+  // Arithmetic and bitwise operators: handle integer type specialization
+  const leftType = inferType(binary.operand[0]!);
+  const rightType = inferType(binary.operand[1]!);
+
+  // If both are primitive types
+  if (leftType.kind === "primitiveType" && rightType.kind === "primitiveType") {
+    const leftName = leftType.name;
+    const rightName = rightType.name;
+
+    // integer + integer = integer
+    if (leftName === "integer" && rightName === "integer") {
+      return integerType();
+    }
+
+    // integer + <concrete type> = <concrete type>
+    if (leftName === "integer" && rightName !== "integer") {
+      return rightType;
+    }
+
+    // <concrete type> + integer = <concrete type>
+    if (leftName !== "integer" && rightName === "integer") {
+      return leftType;
+    }
+
+    // Both are concrete types: return left type (will be checked for compatibility elsewhere)
+    return leftType;
+  }
+
+  // Fallback: return left operand type
+  return leftType;
 }
 
 // 推断一元表达式类型

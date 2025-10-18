@@ -2,7 +2,7 @@ import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSym
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
-import { evaluateExpr } from "./const-eval";
+import { evaluateExpr, Evaluated } from "./const-eval";
 import util from 'util';
 
 // 语义分析结果
@@ -255,7 +255,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // 如果声明了类型且有初始化表达式，检查类型是否匹配
     // 但如果类型分析时已经报错（如未知类型），则跳过类型匹配检查以避免级联错误
     if (node.type.kind !== ast.ASTType.UnitType && inferredType && !hasTypeError) {
-      if (!areTypesEqual(varType, inferredType)) {
+      if (!areTypesEqual(varType, inferredType, this.symbolTable)) {
         this.reportError(
           `Type mismatch in variable declaration: expected ${this.typeToString(varType)}, found ${this.typeToString(inferredType)}`,
           node
@@ -296,31 +296,36 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   }
 
   onConst(node: ast.NodeByKind<ast.ASTType.ConstItem>, self: ast.Visitor<void>): void {
-    // 分析常量值（如果存在）
+    // Analyze constant value (if exists)
     let inferredType: Type | undefined;
+    let constValue: Evaluated | undefined;
+
     if (node.val) {
       this.visit(node.val, self);
-      // 推断表达式类型
+      // Infer expression type
       inferredType = this.inferExprType(node.val);
+      // Evaluate constant expression
+      constValue = evaluateExpr(node.val, this.symbolTable);
     }
-    
-    // 分析常量类型
+
+    // Analyze constant type
     let constType = this.analyzeType(node.type);
-    
-    // 如果常量声明中没有指定类型，使用推断的类型
+
+    // If no type specified, use inferred type
     if (node.type.kind === ast.ASTType.UnitType && inferredType) {
       constType = inferredType;
     }
-    
-    // 创建常量符号
+
+    // Create constant symbol with evaluated value
     const symbol: VariableSymbol = {
       UUID: genUUID(),
       name: node.name,
       type: constType,
-      mutable: false  // 常量默认不可变
+      mutable: false,  // Constants are immutable
+      evaluated: constValue  // Store compile-time evaluated result
     };
-    
-    // 插入符号表
+
+    // Insert into symbol table
     try {
       this.symbolTable.insertVariable(node.name, symbol);
     } catch (error) {
@@ -330,8 +335,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         throw error;
       }
     }
-    
-    // 继续处理子节点
+
+    // Continue processing child nodes
     ast.walk(node, self);
   }
 
@@ -460,9 +465,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         
         // 访问数组大小表达式
         this.visit(type.expr, this);
-        
+
         // 检查数组大小是否为常量表达式
-        const sizeEvaluated = evaluateExpr(type.expr);
+        const sizeEvaluated = evaluateExpr(type.expr, this.symbolTable);
         if (!sizeEvaluated) {
           this.reportError("Array size must be a constant expression", type.expr);
         } else if (typeof sizeEvaluated.value !== 'number' || sizeEvaluated.value < 0) {
@@ -726,7 +731,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // this.log(`Assignment type check:`, { left: left.kind, leftType, right: right.kind, rightType });
 
     // 检查类型是否匹配
-    if (!areTypesEqual(leftType, rightType)) {
+    if (!areTypesEqual(leftType, rightType, this.symbolTable)) {
       this.reportError(
         `Type mismatch in assignment: expected ${this.typeToString(leftType)}, found ${this.typeToString(rightType)}`,
         left
@@ -741,7 +746,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         return type.name;
       case "arrayType":
         const elementType = this.typeToString(type.type);
-        const sizeEval = evaluateExpr(type.expr);
+        const sizeEval = evaluateExpr(type.expr, this.symbolTable);
         if (sizeEval && typeof sizeEval.value === 'number') {
           return `[${elementType}; ${sizeEval.value}]`;
         } else {
@@ -766,7 +771,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   private checkArrayDimensions(declaredType: import("./info").Type, initExpr: ast.Expr, node: ast.ASTNode): void {
     // 检查声明的数组大小
     if (declaredType.kind === "arrayType") {
-      const declaredSizeEval = evaluateExpr(declaredType.expr);
+      const declaredSizeEval = evaluateExpr(declaredType.expr, this.symbolTable);
       if (declaredSizeEval && typeof declaredSizeEval.value === 'number') {
         const declaredSize = declaredSizeEval.value;
 
@@ -790,7 +795,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           }
         } else if (initExpr.kind === ast.ASTType.RepeatArrayExpr) {
           // 重复数组初始化 [1; 3]
-          const repeatEval = evaluateExpr(initExpr.repeat);
+          const repeatEval = evaluateExpr(initExpr.repeat, this.symbolTable);
           if (repeatEval && typeof repeatEval.value === 'number') {
             const actualSize = repeatEval.value;
             if (actualSize !== declaredSize) {

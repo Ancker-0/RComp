@@ -1,4 +1,5 @@
 import { ASTNode, ASTType, getChildren, NodeByKind, visit, Visitor, walk } from "../parser/ast"
+import { SymbolTable } from "./info"
 
 export type resolvedType = any
 export type Evaluated = {
@@ -7,6 +8,7 @@ export type Evaluated = {
 }
 
 export class ConstEvaluator implements Visitor {
+    constructor(private symbolTable?: SymbolTable) {}
     onLiteralExpr(node: NodeByKind<ASTType.LiteralExpr>, self: Visitor) {
         node.evaluated = {
             type: node.type,
@@ -82,8 +84,16 @@ export class ConstEvaluator implements Visitor {
     }
     
     onPathExpr(node: NodeByKind<ASTType.PathExpr>, self: Visitor): void {
-        // 简单路径表达式，目前不处理
-        // 在常量求值上下文中，我们只处理字面量和简单的算术表达式
+        // Try to resolve constant values from symbol table
+        if (this.symbolTable && node.segs.length === 1) {
+            const name = node.segs[0]!;
+            const varSymbol = this.symbolTable.lookupVariable(name);
+
+            // If it's a constant with an evaluated value, propagate it
+            if (varSymbol && !varSymbol.mutable && varSymbol.evaluated) {
+                node.evaluated = varSymbol.evaluated;
+            }
+        }
         // PathExpr has no children, so nothing to do here
     }
     
@@ -114,9 +124,9 @@ export class ConstEvaluator implements Visitor {
     }
 }
 
-// 计算表达式的值
-export function evaluateExpr(node: ASTNode): Evaluated | undefined {
-    const evaluator = new ConstEvaluator();
+// Evaluate expression value
+export function evaluateExpr(node: ASTNode, symbolTable?: SymbolTable): Evaluated | undefined {
+    const evaluator = new ConstEvaluator(symbolTable);
     visit(node, evaluator);
     return (node as any).evaluated;
 }

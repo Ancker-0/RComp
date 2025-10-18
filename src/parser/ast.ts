@@ -122,6 +122,7 @@ export interface LiteralExpr extends ExprBase {
     kind: ASTType.LiteralExpr
     type: "char" | "string" | "rstring" | "cstring" | "rcstring" | "integer" | "bool"
     value: string
+    suffix?: string  // For integer literals: i32, u32, usize, isize, etc.
 }
 export interface UnaryExpr extends ExprBase {
     kind: ASTType.UnaryExpr

@@ -1,5 +1,6 @@
 import { genUUID, UUID } from "./util";
 import * as ast from "../parser/ast";
+import { Evaluated } from "./const-eval";
 
 // 语义错误类
 export class SemanticError extends Error {
@@ -15,6 +16,7 @@ export interface VariableSymbol {
   name: string;
   type: Type;
   mutable: boolean;  // 添加可变性信息
+  evaluated?: Evaluated;  // 对于常量，存储编译时求值的结果（可扩展到任何类型）
 }
 
 // 类型符号
@@ -44,7 +46,7 @@ export type Type =
 
 export interface PrimitiveType {
   kind: "primitiveType";
-  name: "i32" | "u32" | "bool" | "char" | "str" | "unit";
+  name: "i32" | "u32" | "usize" | "isize" | "integer" | "bool" | "char" | "str" | "unit";
 }
 
 export interface TypePath {
@@ -76,14 +78,34 @@ export const unitType: () => Type = () => ({
   name: "unit" 
 });
 
-export const i32Type: () => Type = () => ({ 
-  kind: "primitiveType", 
-  name: "i32" 
+export const i32Type: () => Type = () => ({
+  kind: "primitiveType",
+  name: "i32"
 });
 
-export const boolType: () => Type = () => ({ 
-  kind: "primitiveType", 
-  name: "bool" 
+export const u32Type: () => Type = () => ({
+  kind: "primitiveType",
+  name: "u32"
+});
+
+export const usizeType: () => Type = () => ({
+  kind: "primitiveType",
+  name: "usize"
+});
+
+export const isizeType: () => Type = () => ({
+  kind: "primitiveType",
+  name: "isize"
+});
+
+export const integerType: () => Type = () => ({
+  kind: "primitiveType",
+  name: "integer"
+});
+
+export const boolType: () => Type = () => ({
+  kind: "primitiveType",
+  name: "bool"
 });
 
 // 作用域接口
@@ -143,9 +165,11 @@ export class SymbolTableImpl implements SymbolTable {
 
   // 初始化内置类型
   private initializePrimitiveTypes(): void {
-    const primitiveTypes: Array<[string, "i32" | "u32" | "bool" | "char" | "str" | "unit"]> = [
+    const primitiveTypes: Array<[string, "i32" | "u32" | "usize" | "isize" | "bool" | "char" | "str" | "unit"]> = [
       ["i32", "i32"],
       ["u32", "u32"],
+      ["usize", "usize"],
+      ["isize", "isize"],
       ["bool", "bool"],
       ["char", "char"],
       ["str", "str"],
@@ -300,33 +324,50 @@ export class SymbolTableImpl implements SymbolTable {
 export const inferredType = new Map<ast.ASTNode, Type>();
 import { evaluateExpr } from "./const-eval";
 
-// 类型相等性检查函数
-export function areTypesEqual(type1: Type, type2: Type): boolean {
-  // 基本类型比较
+// Type equality checking function
+export function areTypesEqual(type1: Type, type2: Type, symbolTable?: SymbolTable): boolean {
+  // Compare basic types
   if (type1.kind !== type2.kind) {
     return false;
   }
-  
-  // 根据类型种类进行具体比较
+
+  // Compare based on type kind
   switch (type1.kind) {
     case "primitiveType":
-      return type1.name === (type2 as PrimitiveType).name;
-    
+      const prim1 = type1 as PrimitiveType;
+      const prim2 = type2 as PrimitiveType;
+
+      // Exact match
+      if (prim1.name === prim2.name) {
+        return true;
+      }
+
+      // Integer literal compatibility: 'integer' is compatible with any integer type
+      const integerTypes = ["i32", "u32", "usize", "isize"];
+      if (prim1.name === "integer" && integerTypes.includes(prim2.name)) {
+        return true;
+      }
+      if (prim2.name === "integer" && integerTypes.includes(prim1.name)) {
+        return true;
+      }
+
+      return false;
+
     case "arrayType":
       const arrayType2 = type2 as ArrayType;
-      // 比较元素类型
-      if (!areTypesEqual(type1.type, arrayType2.type)) {
+      // Compare element types
+      if (!areTypesEqual(type1.type, arrayType2.type, symbolTable)) {
         return false;
       }
-      // 比较数组大小表达式（通过求值比较）
-      const size1 = evaluateExpr(type1.expr);
-      const size2 = evaluateExpr(arrayType2.expr);
-      return size1 !== undefined && size2 !== undefined && 
+      // Compare array size expressions (by evaluating them)
+      const size1 = evaluateExpr(type1.expr, symbolTable);
+      const size2 = evaluateExpr(arrayType2.expr, symbolTable);
+      return size1 !== undefined && size2 !== undefined &&
              typeof size1.value === 'number' && typeof size2.value === 'number' &&
              size1.value === size2.value;
-    
+
     default:
-      // 对于其他类型，暂时使用简单的相等性检查
+      // For other types, use simple equality check for now
       return JSON.stringify(type1) === JSON.stringify(type2);
   }
 }
