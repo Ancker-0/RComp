@@ -3,4 +3,5 @@ tsconfig.tsbuildinfo
 **/playground/
 .gitignore
 node_modules
-package-lock.json
+.vscode
+src/**/*.md

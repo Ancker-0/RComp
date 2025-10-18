@@ -25,6 +25,15 @@ export interface TypeSymbol {
   declaration?: ast.ASTNode;
 }
 
+// 函数符号
+export interface FunctionSymbol {
+  UUID: UUID;
+  name: string;
+  params: Type[];
+  returnType: Type;
+  declaration?: ast.FuncItem;
+}
+
 // 类型定义
 export type Type = 
   | PrimitiveType
@@ -58,6 +67,7 @@ export interface FunctionType {
 export interface StructType {
   kind: "structType";
   fields: Map<string, Type>;
+  methods?: Map<string, FunctionSymbol>;  // Methods associated with this struct
 }
 
 // 基本类型实例
@@ -80,6 +90,7 @@ export const boolType: () => Type = () => ({
 export interface Scope {
   variables: Map<string, VariableSymbol>;
   types: Map<string, TypeSymbol>;
+  functions: Map<string, FunctionSymbol>;
   parent: Scope | null;
   depth: number;
 }
@@ -99,6 +110,11 @@ export interface SymbolTable {
   insertType(name: string, symbol: TypeSymbol): void;
   lookupType(name: string): TypeSymbol | undefined;
   lookupTypeInCurrentScope(name: string): TypeSymbol | undefined;
+
+  // 函数符号管理
+  insertFunction(name: string, symbol: FunctionSymbol): void;
+  lookupFunction(name: string): FunctionSymbol | undefined;
+  lookupFunctionInCurrentScope(name: string): FunctionSymbol | undefined;
 }
 
 // 符号表实现
@@ -111,14 +127,18 @@ export class SymbolTableImpl implements SymbolTable {
     this.globalScope = {
       variables: new Map(),
       types: new Map(),
+      functions: new Map(),
       parent: null,
       depth: 0
     };
-    
+
     this.scopes = [this.globalScope];
-    
+
     // 初始化内置类型
     this.initializePrimitiveTypes();
+
+    // 初始化内置函数
+    this.initializeBuiltinFunctions();
   }
 
   // 初始化内置类型
@@ -131,7 +151,7 @@ export class SymbolTableImpl implements SymbolTable {
       ["str", "str"],
       ["()", "unit"]
     ];
-    
+
     for (const [name, typeName] of primitiveTypes) {
       const symbol: TypeSymbol = {
         UUID: genUUID(),
@@ -143,6 +163,18 @@ export class SymbolTableImpl implements SymbolTable {
       };
       this.globalScope.types.set(name, symbol);
     }
+  }
+
+  // 初始化内置函数
+  private initializeBuiltinFunctions(): void {
+    // Register exit function: fn exit(code: i32) -> ()
+    const exitFunction: FunctionSymbol = {
+      UUID: genUUID(),
+      name: "exit",
+      params: [i32Type()],
+      returnType: unitType()
+    };
+    this.globalScope.functions.set("exit", exitFunction);
   }
 
   // 获取当前作用域
@@ -159,6 +191,7 @@ export class SymbolTableImpl implements SymbolTable {
     const newScope: Scope = {
       variables: new Map(),
       types: new Map(),
+      functions: new Map(),
       parent: currentScope,
       depth: currentScope.depth + 1
     };
@@ -230,6 +263,36 @@ export class SymbolTableImpl implements SymbolTable {
   lookupTypeInCurrentScope(name: string): TypeSymbol | undefined {
     const currentScope = this.getCurrentScope();
     return currentScope.types.get(name);
+  }
+
+  // 函数符号管理
+  insertFunction(name: string, symbol: FunctionSymbol): void {
+    const currentScope = this.getCurrentScope();
+
+    // 检查当前作用域是否已存在同名函数
+    if (currentScope.functions.has(name)) {
+      throw new SemanticError(`Duplicate function declaration: ${name}`);
+    }
+
+    // 插入函数符号
+    currentScope.functions.set(name, symbol);
+  }
+
+  lookupFunction(name: string): FunctionSymbol | undefined {
+    // 从当前作用域开始，向上查找
+    for (let i = this.scopes.length - 1; i >= 0; i--) {
+      const scope = this.scopes[i]!;
+      const symbol = scope.functions.get(name);
+      if (symbol) {
+        return symbol;
+      }
+    }
+    return undefined;
+  }
+
+  lookupFunctionInCurrentScope(name: string): FunctionSymbol | undefined {
+    const currentScope = this.getCurrentScope();
+    return currentScope.functions.get(name);
   }
 }
 

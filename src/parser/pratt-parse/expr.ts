@@ -222,6 +222,14 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                     type: "bool",
                     value: f.raw,
                 }, { ...src, start } ]
+            case "self":
+            case "Self":
+                // Treat self/Self as a path expression
+                ret = {
+                    kind: ast.ASTType.PathExpr,
+                    segs: [f.raw],
+                }
+                break
             // case "loop":
             //     const r = exprWithBlock<[ast.Expr, Info]>(src, x => x ? some(x) : none())
             //     if (!r.succ)
@@ -235,6 +243,45 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
     while (start < token.length) {
         const op = token[start++]!
         if (op.type == TokenType.Operator) {
+            // Special handling for "::" - path separator
+            if (op.raw === "::" && ret.kind === ast.ASTType.PathExpr) {
+                const [lbp, rbp] = infixPower(op)
+                if (lbp < gate) {
+                    --start
+                    break
+                }
+                // Next token should be an identifier
+                if (start >= token.length || token[start]?.type !== TokenType.Identifier) {
+                    throw new Error("Expected identifier after '::'")
+                }
+                const nextIdent = token[start++]!
+                ret = {
+                    kind: ast.ASTType.PathExpr,
+                    segs: [...ret.segs, nextIdent.raw],
+                }
+                continue
+            }
+
+            // Special handling for "." - field access
+            if (op.raw === ".") {
+                const [lbp, rbp] = infixPower(op)
+                if (lbp < gate) {
+                    --start
+                    break
+                }
+                // Next token should be an identifier (field or method name)
+                if (start >= token.length || token[start]?.type !== TokenType.Identifier) {
+                    throw new Error("Expected identifier after '.'")
+                }
+                const fieldName = token[start++]!
+                ret = {
+                    kind: ast.ASTType.FieldExpr,
+                    object: ret,
+                    field: fieldName.raw,
+                }
+                continue
+            }
+
             try {
                 const [lbp, rbp] = postfixPower(op)
                 if (lbp > gate) {
@@ -328,6 +375,62 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                 targetType: typeResult[0]
             }
             start = typeResult[1].start
+        } else if (op.type == TokenType.LeftBrace && ret.kind === ast.ASTType.PathExpr) {
+            // Struct initialization: StructName { field1: expr1, field2: expr2, ... }
+            // Parse fields directly here to avoid circular dependency
+            const fields: { name: string, value: ast.Expr }[] = []
+
+            // Check for empty struct {}
+            if (token[start]?.type === TokenType.RightBrace) {
+                ++start
+                ret = {
+                    kind: ast.ASTType.StructExpr,
+                    path: ret,
+                    fields
+                }
+                continue
+            }
+
+            // Parse fields: identifier : expr , ...
+            while (start < token.length) {
+                if (token[start]?.type !== TokenType.Identifier) {
+                    throw new Error("Expected field name in struct initialization")
+                }
+                const fieldName = token[start++]!.raw
+
+                if (token[start]?.type !== TokenType.Colon) {
+                    throw new Error("Expected ':' after field name")
+                }
+                ++start
+
+                const fieldValue = parseExpr({ ...src, start }, -Infinity)
+                fields.push({ name: fieldName, value: fieldValue[0] })
+                start = fieldValue[1].start
+
+                // Check for comma or closing brace
+                if (token[start]?.type === TokenType.Comma) {
+                    ++start
+                    // Allow trailing comma before }
+                    if (token[start]?.type === TokenType.RightBrace) {
+                        break
+                    }
+                } else if (token[start]?.type === TokenType.RightBrace) {
+                    break
+                } else {
+                    throw new Error("Expected ',' or '}' in struct initialization")
+                }
+            }
+
+            if (token[start]?.type !== TokenType.RightBrace) {
+                throw new Error("Expected '}' after struct fields")
+            }
+            ++start
+
+            ret = {
+                kind: ast.ASTType.StructExpr,
+                path: ret,
+                fields
+            }
         } else {
             --start
             break

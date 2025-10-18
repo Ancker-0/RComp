@@ -167,24 +167,23 @@ export const fn: ParserK<ast.FuncItem> = fmap(
     seq(
         maybe(keyword("const")), keyword("fn"), id(TokenType.Identifier),
         id(TokenType.LeftParen),
-        or1(
+        maybe(or1(
             seq(selfParam, maybe(id(TokenType.Comma))),
             seq(maybe(seq(selfParam, id(TokenType.Comma))), funcParam, many(seq(id(TokenType.Comma), funcParam)), maybe(id(TokenType.Comma)))
-        ),
+        )),
         id(TokenType.RightParen),
         maybe(seq(operator("->"), type)),
         or1(id(TokenType.Semicolon), block)
     ),
     res => {
         // Extract params from res[4]
-        // res[4] is either:
+        // res[4] is null (no params) or one of:
         // - [selfParam, maybe(comma)] - just self
         // - [maybe(selfParam+comma), funcParam, many([comma, funcParam]), maybe(comma)] - regular params
         let params: ast.Param[] = []
         const paramsPart = res[4]
 
-        // Check if it's the second form (has funcParam)
-        if (Array.isArray(paramsPart) && paramsPart.length === 4 && paramsPart[1] && 'kind' in paramsPart[1]) {
+        if (paramsPart && Array.isArray(paramsPart) && paramsPart.length === 4 && paramsPart[1] && 'kind' in paramsPart[1]) {
             // Second form: regular function parameters
             const firstParam = paramsPart[1] as ast.Param
             const restParams = (paramsPart[2] as any[]).map((x: any) => x[1] as ast.Param)
@@ -224,6 +223,24 @@ export const structField: ParserK<ast.StructField> = fmap(
 export const structFields: ParserK<ast.StructField[]> = fmap(
     maybe(seq(structField, many(seq(id(TokenType.Comma), structField)), maybe(id(TokenType.Comma)))),
     r => r ? [r[0], ...r[1].map(x => x[1])] : []
+)
+
+export const structFieldInit: ParserK<{ name: string, value: ast.Expr }> = fmap(
+    seq(id(TokenType.Identifier), id(TokenType.Colon), lazy(() => expr)),
+    r => ({
+        name: r[0].raw,
+        value: r[2],
+    })
+)
+
+export const structFieldsInit: ParserK<{ name: string, value: ast.Expr }[]> = fmap(
+    or1(seq(structFieldInit, many(seq(id(TokenType.Comma), structFieldInit)), or1(id(TokenType.Comma), skip)), skip),
+    r => r === null ? [] : [r[0], ...r[1].map(x => x[1])]
+)
+
+export const structExprFields: ParserK<{ name: string, value: ast.Expr }[]> = fmap(
+    seq(id(TokenType.LeftBrace), structFieldsInit, id(TokenType.RightBrace)),
+    r => r[1]
 )
 
 export const structItem: ParserK<ast.StructItem> = fmap(

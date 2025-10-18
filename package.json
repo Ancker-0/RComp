@@ -6,7 +6,7 @@
         "check": "tsc --noEmit",
         "test": "jest --verbose",
         "start": "node build/index.js",
-        "pratt": "node build/parser/pratt-parse/pratt.js"
+        "test:semantic": "ts-node src/test/semantic1-test.ts"
     },
     "devDependencies": {
         "@types/jest": "^30.0.0",

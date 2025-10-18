@@ -36,6 +36,10 @@ export function inferType(expr: ast.Expr): Type {
     case ast.ASTType.IndexExpr:
       return inferIndexType(expr);
 
+    case ast.ASTType.CastExpr:
+      // TODO: 需要访问符号表，将在 SemanticAnalyzer 中处理
+      return unitType();
+
     default:
       // 默认返回 unit 类型
       return unitType();
@@ -126,10 +130,19 @@ function inferIndexType(index: ast.IndexExpr): Type {
 
 // 推断二元表达式类型
 function inferBinaryType(binary: ast.BinaryExpr): Type {
-  // 对于大多数二元操作，结果类型与操作数类型相同
-  // 这是一个简化的实现，实际的类型推断会更复杂
-  
-  // TODO: 根据操作符类型进行更精确的类型推断
+  // 比较运算符返回 bool 类型
+  const comparisonOps = ["==", "!=", "<", ">", "<=", ">="];
+  if (comparisonOps.includes(binary.operator)) {
+    return boolType();
+  }
+
+  // 逻辑运算符返回 bool 类型
+  if (binary.operator === "&&" || binary.operator === "||") {
+    return boolType();
+  }
+
+  // 算术和位运算符返回操作数类型
+  // TODO: 更精确的类型推断（考虑类型提升等）
   return inferType(binary.operand[0]!);
 }
 

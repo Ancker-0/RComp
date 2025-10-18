@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, Type, i32Type, boolType, unitType, areTypesEqual } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -14,6 +14,8 @@ export interface SemanticAnalysisResult {
 export class SemanticAnalyzer implements ast.Visitor<void> {
   private symbolTable: SymbolTableImpl;
   private errors: SemanticError[] = [];
+  private loopDepth: number = 0; // 跟踪循环嵌套深度
+  private inLoopContext: boolean = false; // 是否在 loop 中（支持 break value）
 
   constructor() {
     this.symbolTable = new SymbolTableImpl();
@@ -35,22 +37,151 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
   // 访问者模式实现
   onCrate(node: ast.NodeByKind<ast.ASTType.Crate>, self: ast.Visitor<void>): void {
-    // 遍历所有项
+    // Pass 1: Register all struct types
+    for (const item of node.items) {
+      if (item.kind === ast.ASTType.StructItem) {
+        this.registerStruct(item);
+      }
+    }
+
+    // Pass 2: Register all impl blocks (methods)
+    for (const item of node.items) {
+      if (item.kind === ast.ASTType.InherentImpl) {
+        this.registerImpl(item);
+      }
+    }
+
+    // Pass 3: Register all function signatures
+    for (const item of node.items) {
+      if (item.kind === ast.ASTType.FnItem) {
+        this.registerFunction(item);
+      }
+    }
+
+    // Pass 4: Analyze all item contents
     for (const item of node.items) {
       this.visit(item, self);
     }
   }
 
+  // 注册函数签名（不分析函数体）
+  private registerFunction(node: ast.FuncItem): void {
+    const paramTypes = node.params.map(p => this.analyzeType(p.type));
+    const returnType = this.analyzeType(node.returnType);
+
+    const funcSymbol: FunctionSymbol = {
+      UUID: genUUID(),
+      name: node.name,
+      params: paramTypes,
+      returnType: returnType,
+      declaration: node
+    };
+
+    try {
+      this.symbolTable.insertFunction(node.name, funcSymbol);
+    } catch (error) {
+      if (error instanceof SemanticError) {
+        this.reportError(error.message);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // Register struct type (without analyzing field expressions)
+  private registerStruct(node: ast.StructItem): void {
+    // Create field map
+    const fields = new Map<string, Type>();
+
+    for (const field of node.fields) {
+      const fieldType = this.analyzeType(field.type);
+      fields.set(field.name, fieldType);
+    }
+
+    // Create struct type
+    const structType: StructType = {
+      kind: "structType",
+      fields,
+      methods: new Map()  // Will be populated by registerImpl
+    };
+
+    // Create type symbol
+    const typeSymbol: TypeSymbol = {
+      UUID: genUUID(),
+      name: node.name,
+      type: structType,
+      declaration: node
+    };
+
+    try {
+      this.symbolTable.insertType(node.name, typeSymbol);
+    } catch (error) {
+      if (error instanceof SemanticError) {
+        this.reportError(error.message);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // Register impl block methods
+  private registerImpl(node: ast.InherentImpl): void {
+    // Look up the type
+    const typeName = node.type.value;
+    const typeSymbol = this.symbolTable.lookupType(typeName);
+
+    if (!typeSymbol) {
+      this.reportError(`Unknown type in impl block: ${typeName}`, node);
+      return;
+    }
+
+    // Ensure it's a struct type
+    if (typeSymbol.type.kind !== "structType") {
+      this.reportError(`Cannot implement methods for non-struct type: ${typeName}`, node);
+      return;
+    }
+
+    const structType = typeSymbol.type as StructType;
+
+    // Register each method
+    for (const method of node.fn) {
+      // Analyze parameter types (excluding self parameter)
+      const paramTypes = method.params.map(p => this.analyzeType(p.type));
+      const returnType = this.analyzeType(method.returnType);
+
+      const methodSymbol: FunctionSymbol = {
+        UUID: genUUID(),
+        name: method.name,
+        params: paramTypes,
+        returnType: returnType,
+        declaration: method
+      };
+
+      // Add to struct's methods map
+      if (!structType.methods) {
+        structType.methods = new Map();
+      }
+
+      if (structType.methods.has(method.name)) {
+        this.reportError(`Duplicate method definition: ${method.name} for type ${typeName}`, method);
+      } else {
+        structType.methods.set(method.name, methodSymbol);
+      }
+    }
+  }
+
   onFn(node: ast.NodeByKind<ast.ASTType.FnItem>, self: ast.Visitor<void>): void {
+    // 函数签名已经在 onCrate 中注册过了，这里只需要分析函数体
+
     // 进入函数作用域
     this.symbolTable.enterScope();
-    
+
     try {
       // 处理函数参数
       for (const param of node.params) {
         this.analyzeParameter(param);
       }
-      
+
       // 处理函数体
       if (node.body) {
         this.visit(node.body, self);
@@ -64,13 +195,34 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   onBlock(node: ast.NodeByKind<ast.ASTType.BlockExpr>, self: ast.Visitor<void>): void {
     // 进入块作用域
     this.symbolTable.enterScope();
-    
+
     try {
-      // 处理块中的语句
+      // Pre-scan pass 1: Register all struct types in statements
+      for (const stmt of node.statements) {
+        if (stmt.kind === ast.ASTType.StructItem) {
+          this.registerStruct(stmt);
+        }
+      }
+
+      // Pre-scan pass 2: Register all impl blocks
+      for (const stmt of node.statements) {
+        if (stmt.kind === ast.ASTType.InherentImpl) {
+          this.registerImpl(stmt);
+        }
+      }
+
+      // Pre-scan pass 3: Register all function signatures
+      for (const stmt of node.statements) {
+        if (stmt.kind === ast.ASTType.FnItem) {
+          this.registerFunction(stmt);
+        }
+      }
+
+      // Process all statements in order
       for (const stmt of node.statements) {
         this.visit(stmt, self);
       }
-      
+
       // 处理块中的表达式
       if (node.expr) {
         this.visit(node.expr, self);
@@ -87,7 +239,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     if (node.expr) {
       this.visit(node.expr, self);
       // 推断表达式类型
-      inferredType = inferType(node.expr);
+      inferredType = this.inferExprType(node.expr);
     }
     
     // 分析变量类型
@@ -146,7 +298,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     if (node.val) {
       this.visit(node.val, self);
       // 推断表达式类型
-      inferredType = inferType(node.val);
+      inferredType = this.inferExprType(node.val);
     }
     
     // 分析常量类型
@@ -197,6 +349,14 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         return;
       }
 
+      // 然后尝试查找函数
+      const funcSymbol = this.symbolTable.lookupFunction(name);
+      if (funcSymbol) {
+        // 这是一个函数路径，通常出现在函数调用中
+        // PathExpr 本身不需要设置 evaluated，CallExpr 会处理
+        return;
+      }
+
       // 然后尝试查找类型
       const typeSymbol = this.symbolTable.lookupType(name);
       if (typeSymbol) {
@@ -233,7 +393,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.visit(node.idx, self);
 
     // 推断索引表达式的类型（返回数组元素类型）
-    const arrayType = inferType(node.arr);
+    const arrayType = this.inferExprType(node.arr);
     // this.log(`IndexExpr type inference:`, { arr: node.arr.kind, arrayType, hasEvaluated: !!node.arr.evaluated });
     if (arrayType.kind === "arrayType") {
       node.evaluated = {
@@ -323,10 +483,157 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   private visit<R = void>(node: ast.ASTNode, visitor: ast.Visitor<R>): R | undefined {
     return ast.visit(node, visitor);
   }
+
+  // Helper method to infer the return type of a call expression
+  private inferCallExprType(expr: ast.CallExpr): Type {
+    // Check if this is a method call (value is FieldExpr)
+    if (expr.value.kind === ast.ASTType.FieldExpr) {
+      const fieldExpr = expr.value as ast.FieldExpr;
+      const objectType = this.inferExprType(fieldExpr.object);
+      const methodName = fieldExpr.field;
+
+      // Look up the method in the struct's methods
+      if (objectType.kind === "structType") {
+        const structType = objectType as StructType;
+        if (structType.methods && structType.methods.has(methodName)) {
+          const methodSymbol = structType.methods.get(methodName)!;
+          return methodSymbol.returnType;
+        } else {
+          this.reportError(`Unknown method '${methodName}' for struct type`, expr);
+          return unitType();
+        }
+      } else {
+        this.reportError(`Cannot call method on non-struct type`, expr);
+        return unitType();
+      }
+    }
+
+    // Regular function call (value is PathExpr)
+    if (expr.value.kind === ast.ASTType.PathExpr && expr.value.segs.length === 1) {
+      const funcName = expr.value.segs[0]!;
+      const funcSymbol = this.symbolTable.lookupFunction(funcName);
+      if (funcSymbol) {
+        return funcSymbol.returnType;
+      } else {
+        this.reportError(`Unknown function '${funcName}'`, expr);
+        return unitType();
+      }
+    }
+
+    // Fallback - report error for unsupported call expression
+    this.reportError(`Cannot infer type for call expression`, expr);
+    return unitType();
+  }
+
+  // 类型推断方法（可以访问符号表）
+  private inferExprType(expr: ast.Expr): Type {
+    // 如果表达式已经有 evaluated 信息，直接返回
+    if (expr.evaluated?.type) {
+      return expr.evaluated.type;
+    }
+
+    switch (expr.kind) {
+      case ast.ASTType.CallExpr:
+        // Use the new inferCallExprType method
+        return this.inferCallExprType(expr);
+
+      case ast.ASTType.CastExpr:
+        // 类型转换：返回目标类型
+        return this.analyzeType(expr.targetType);
+
+      case ast.ASTType.PathExpr:
+        // 路径表达式：查找变量符号获取类型
+        if (expr.segs.length === 1) {
+          const name = expr.segs[0]!;
+          const varSymbol = this.symbolTable.lookupVariable(name);
+          if (varSymbol) {
+            return varSymbol.type;
+          }
+        }
+        // TODO: 处理复杂路径（如 mod::Type::method）
+        return unitType();
+
+      default:
+        // 其他情况使用原有的 inferType
+        return inferType(expr);
+    }
+  }
   
+  // Handle struct expression
+  onStructExpr(node: ast.NodeByKind<ast.ASTType.StructExpr>, self: ast.Visitor<void>): void {
+    // Get the struct type from the path
+    if (node.path.segs.length === 1) {
+      const typeName = node.path.segs[0]!;
+      const typeSymbol = this.symbolTable.lookupType(typeName);
+
+      if (typeSymbol && typeSymbol.type.kind === "structType") {
+        // Set the evaluated type of this expression
+        node.evaluated = {
+          type: typeSymbol.type,
+          value: undefined
+        };
+
+        // TODO: Type-check that all required fields are present
+        // TODO: Type-check that field values match field types
+      }
+    }
+
+    // Visit all field values
+    for (const field of node.fields) {
+      this.visit(field.value, self);
+    }
+  }
+
   // 添加到Visitor接口的映射
   onLiteralExpr = undefined;
-  onCallExpr = undefined;
+  onCallExpr(node: ast.NodeByKind<ast.ASTType.CallExpr>, self: ast.Visitor<void>): void {
+    // Special handling for method calls: don't visit the FieldExpr itself,
+    // only visit the object to infer its type
+    if (node.value.kind === ast.ASTType.FieldExpr) {
+      const fieldExpr = node.value as ast.FieldExpr;
+      this.visit(fieldExpr.object, self);
+    } else {
+      // Regular function call - visit the callee
+      this.visit(node.value, self);
+    }
+
+    // Visit all arguments
+    for (const param of node.param) {
+      this.visit(param, self);
+    }
+
+    // Infer the return type and set it on the node
+    const returnType = this.inferCallExprType(node);
+    node.evaluated = {
+      type: returnType,
+      value: undefined
+    };
+  }
+
+  onFieldExpr(node: ast.NodeByKind<ast.ASTType.FieldExpr>, self: ast.Visitor<void>): void {
+    // Visit the object
+    this.visit(node.object, self);
+
+    // Infer the type of field access
+    const objectType = this.inferExprType(node.object);
+    if (objectType.kind === "structType") {
+      const structType = objectType as StructType;
+
+      // Look up field type
+      if (structType.fields.has(node.field)) {
+        const fieldType = structType.fields.get(node.field)!;
+        node.evaluated = {
+          type: fieldType,
+          value: undefined
+        };
+      } else {
+        this.reportError(`Unknown field '${node.field}' for struct type`, node);
+      }
+    } else {
+      this.reportError(`Cannot access field on non-struct type`, node);
+    }
+  }
+
   onUnaryExpr = undefined;
   onBinaryExpr(node: ast.NodeByKind<ast.ASTType.BinaryExpr>, self: ast.Visitor<void>): void {
     // 先处理子节点，确保类型信息已经推断
@@ -409,8 +716,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   // 辅助方法：检查赋值语句的类型匹配
   private checkAssignmentTypes(left: ast.Expr, right: ast.Expr): void {
     // 推断左右表达式的类型
-    const leftType = inferType(left);
-    const rightType = inferType(right);
+    const leftType = this.inferExprType(left);
+    const rightType = this.inferExprType(right);
 
     // Debug logging
     // this.log(`Assignment type check:`, { left: left.kind, leftType, right: right.kind, rightType });
@@ -437,6 +744,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         } else {
           return `[${elementType}; ?]`;
         }
+      case "structType":
+        // Find the struct name from symbol table
+        const structType = type as StructType;
+        const fieldNames = Array.from(structType.fields.keys());
+        return `struct { ${fieldNames.join(", ")} }`;
       default:
         return JSON.stringify(type);
     }
@@ -500,7 +812,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.visit(node.cond, self);
 
     // 检查条件表达式的类型是否为 bool
-    const condType = inferType(node.cond);
+    const condType = this.inferExprType(node.cond);
     if (condType.kind !== "primitiveType" || condType.name !== "bool") {
       this.reportError(
         `If condition must be of type bool, found ${this.typeToString(condType)}`,
@@ -517,13 +829,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     }
   }
 
-  // 处理 while 表达式
+  // Handle while expression
   onWhile(node: ast.NodeByKind<ast.ASTType.WhileExpr>, self: ast.Visitor<void>): void {
-    // 分析条件表达式
+    // Analyze condition expression
     this.visit(node.cond, self);
 
-    // 检查条件表达式的类型是否为 bool
-    const condType = inferType(node.cond);
+    // Check if condition expression is of type bool
+    const condType = this.inferExprType(node.cond);
     if (condType.kind !== "primitiveType" || condType.name !== "bool") {
       this.reportError(
         `While condition must be of type bool, found ${this.typeToString(condType)}`,
@@ -531,13 +843,54 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       );
     }
 
-    // 分析循环体
-    this.visit(node.body, self);
+    // Enter while loop context
+    this.loopDepth++;
+    const prevInLoop = this.inLoopContext;
+    this.inLoopContext = false; // while does NOT support break with value
+
+    try {
+      // Analyze loop body
+      this.visit(node.body, self);
+    } finally {
+      // Always restore state
+      this.loopDepth--;
+      this.inLoopContext = prevInLoop;
+    }
   }
 
-  // 处理 loop 表达式
+  // Handle loop expression
   onLoop(node: ast.NodeByKind<ast.ASTType.LoopExpr>, self: ast.Visitor<void>): void {
-    // 分析循环体
-    this.visit(node.body, self);
+    // Enter loop context
+    this.loopDepth++;
+    const prevInLoop = this.inLoopContext;
+    this.inLoopContext = true; // loop supports break with value
+
+    try {
+      // Analyze loop body
+      this.visit(node.body, self);
+    } finally {
+      // Always restore state
+      this.loopDepth--;
+      this.inLoopContext = prevInLoop;
+    }
+  }
+
+  // Handle break expression
+  onBreakExpr(node: ast.NodeByKind<ast.ASTType.BreakExpr>, self: ast.Visitor<void>): void {
+    // Check 1: is break inside a loop?
+    if (this.loopDepth === 0) {
+      this.reportError("break statement outside of loop", node);
+      return; // Already an error, no need to continue checking
+    }
+
+    // Check 2: if break has a value
+    if (node.expr) {
+      // break with value, but not in loop (in while instead)
+      if (!this.inLoopContext) {
+        this.reportError("break with value is only allowed in loop expressions", node);
+      }
+      // Visit the break expression
+      this.visit(node.expr, self);
+    }
   }
 }

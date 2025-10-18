@@ -40,6 +40,8 @@ export enum ASTType {
     ReturnExpr,
     AssignExpr,
     CastExpr,
+    StructExpr,
+    FieldExpr,
 
     LetStatement,
     ExprStatement,
@@ -107,7 +109,7 @@ export interface RefType extends ASTBase {
 
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | ReturnExpr | CastExpr
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | ReturnExpr | CastExpr | StructExpr | FieldExpr
 export interface ExprBase extends ASTBase {
     evaluated?: Evaluated
 }
@@ -179,6 +181,18 @@ export interface CastExpr extends ExprBase {
     kind: ASTType.CastExpr
     expr: Expr
     targetType: Type
+}
+
+export interface StructExpr extends ExprBase {
+    kind: ASTType.StructExpr
+    path: PathExpr
+    fields: { name: string, value: Expr }[]
+}
+
+export interface FieldExpr extends ExprBase {
+    kind: ASTType.FieldExpr
+    object: Expr
+    field: string
 }
 
 export interface EmptyStatement extends ASTBase {
@@ -278,6 +292,8 @@ export type ASTNode =
     | BreakExpr
     | ReturnExpr
     | CastExpr
+    | StructExpr
+    | FieldExpr
     | BlockExpr
 
     // Statement 节点
@@ -320,7 +336,10 @@ export interface Visitor<R = void> {
     onConst?(node: NodeByKind<ASTType.ConstItem>, self: Visitor<R>): R
     onExprStatement?(node: NodeByKind<ASTType.ExprStatement>, self: Visitor<R>): R
     onReturnExpr?(node: NodeByKind<ASTType.ReturnExpr>, self: Visitor<R>): R
+    onBreakExpr?(node: NodeByKind<ASTType.BreakExpr>, self: Visitor<R>): R
     onCastExpr?(node: NodeByKind<ASTType.CastExpr>, self: Visitor<R>): R
+    onStructExpr?(node: NodeByKind<ASTType.StructExpr>, self: Visitor<R>): R
+    onFieldExpr?(node: NodeByKind<ASTType.FieldExpr>, self: Visitor<R>): R
     // TODO
     default?(node: ASTNode, self: Visitor<R>): R
 }
@@ -363,8 +382,14 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return visitor.onExprStatement?.(node, visitor)
     case ASTType.ReturnExpr:
       return visitor.onReturnExpr?.(node, visitor)
+    case ASTType.BreakExpr:
+      return visitor.onBreakExpr?.(node, visitor)
     case ASTType.CastExpr:
       return visitor.onCastExpr?.(node, visitor)
+    case ASTType.StructExpr:
+      return visitor.onStructExpr?.(node, visitor)
+    case ASTType.FieldExpr:
+      return visitor.onFieldExpr?.(node, visitor)
     default:
       return visitor.default?.(node, visitor)
   }
@@ -394,7 +419,10 @@ export function getChildren(node: ASTNode): ASTNode[] {
         onConst: n => [n.type, ...(n.val ? [n.val] : [])],
         onExprStatement: n => [n.expr],
         onReturnExpr: n => n.expr ? [n.expr] : [],
+        onBreakExpr: n => n.expr ? [n.expr] : [],
         onCastExpr: n => [n.expr, n.targetType],
+        onStructExpr: n => [n.path, ...n.fields.map(f => f.value)],
+        onFieldExpr: n => [n.object],
         default: n => [],
     }) ?? []
 }
