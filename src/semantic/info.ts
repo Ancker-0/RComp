@@ -42,7 +42,8 @@ export type Type =
   | TypePath
   | ArrayType
   | FunctionType
-  | StructType;
+  | StructType
+  | RefType
 
 export interface PrimitiveType {
   kind: "primitiveType";
@@ -70,6 +71,12 @@ export interface StructType {
   kind: "structType";
   fields: Map<string, Type>;
   methods?: Map<string, FunctionSymbol>;  // Methods associated with this struct
+}
+
+export interface RefType {
+  kind: "refType"
+  mutable: boolean
+  under: Type
 }
 
 // 基本类型实例

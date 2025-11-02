@@ -5,7 +5,7 @@
         "build": "tsc",
         "check": "tsc --noEmit",
         "test": "jest --verbose",
-        "start": "node build/index.js",
+        "start": "ts-node src/index.ts",
         "test:semantic": "ts-node src/test/semantic1-test.ts"
     },
     "devDependencies": {

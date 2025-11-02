@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -37,6 +37,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
   // 访问者模式实现
   onCrate(node: ast.NodeByKind<ast.ASTType.Crate>, self: ast.Visitor<void>): void {
+    // Pass 0: Register constant variables
+    for (const item of node.items)
+      if (item.kind === ast.ASTType.ConstItem)
+        this.visit(item, self)
+
     // Pass 1: Register all struct types
     for (const item of node.items) {
       if (item.kind === ast.ASTType.StructItem) {
@@ -59,9 +64,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     }
 
     // Pass 4: Analyze all item contents
-    for (const item of node.items) {
-      this.visit(item, self);
-    }
+    for (const item of node.items)
+      if (item.kind !== ast.ASTType.ConstItem)
+        this.visit(item, self);
   }
 
   // 注册函数签名（不分析函数体）
@@ -197,6 +202,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.symbolTable.enterScope();
 
     try {
+      // Pass 0: Register constant variables
+      for (const item of node.statements)
+        if (item.kind === ast.ASTType.ConstItem)
+          this.visit(item, self)
+
       // Pre-scan pass 1: Register all struct types in statements
       for (const stmt of node.statements) {
         if (stmt.kind === ast.ASTType.StructItem) {
@@ -219,9 +229,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       }
 
       // Process all statements in order
-      for (const stmt of node.statements) {
-        this.visit(stmt, self);
-      }
+      for (const stmt of node.statements)
+        if (stmt.kind !== ast.ASTType.ConstItem)
+          this.visit(stmt, self);
 
       // 处理块中的表达式
       if (node.expr) {
@@ -479,6 +489,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           type: elementType,
           expr: type.expr
         };
+
+      case ast.ASTType.RefType:
+        return {
+          kind: "refType",
+          under: this.analyzeType(type.type),
+          mutable: type.mutable,
+        }
       
       default:
         // @ts-ignore: 这里是为了处理 TypeScript 的类型检查问题
@@ -510,6 +527,12 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           this.reportError(`Unknown method '${methodName}' for struct type`, expr);
           return unitType();
         }
+      } else if (objectType.kind == "arrayType" && methodName == "len") {
+        const sz = evaluateExpr(objectType.expr, this.symbolTable)
+        if (sz !== undefined && typeof sz.value === 'number') {
+          return usizeType()
+        } else
+          this.reportError(`Unexpected type for array length`, fieldExpr)
       } else {
         this.reportError(`Cannot call method on non-struct type`, expr);
         return unitType();
@@ -663,7 +686,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     if (expr.kind === ast.ASTType.IndexExpr) {
       const indexExpr = expr as ast.IndexExpr;
       // 检查数组表达式是否可变
-      this.checkArrayMutability(indexExpr.arr);
+      // this.checkArrayMutability(indexExpr.arr);
+      this.checkMutability(indexExpr.arr)
       return;
     }
     
