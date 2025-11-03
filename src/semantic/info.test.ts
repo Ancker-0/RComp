@@ -37,7 +37,7 @@ describe("SymbolTable", () => {
       const globalVar: VariableSymbol = {
         UUID: genUUID(),
         name: "globalVar",
-        type: i32Type(),
+        type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
       symbolTable.insertVariable("globalVar", globalVar);
@@ -49,7 +49,7 @@ describe("SymbolTable", () => {
       const localVar: VariableSymbol = {
         UUID: genUUID(),
         name: "globalVar",
-        type: boolType(),
+        type: { ...boolType(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
       symbolTable.insertVariable("globalVar", localVar);
@@ -76,7 +76,7 @@ describe("SymbolTable", () => {
       const symbol: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
-        type: i32Type(),
+        type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
 
@@ -97,14 +97,14 @@ describe("SymbolTable", () => {
       const symbol1: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
-        type: i32Type(),
+        type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
 
       const symbol2: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
-        type: boolType(),
+        type: { ...boolType(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
 
@@ -121,14 +121,14 @@ describe("SymbolTable", () => {
       const symbol1: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
-        type: i32Type(),
+        type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
 
       const symbol2: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
-        type: boolType(),
+        type: { ...boolType(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
 
@@ -154,7 +154,7 @@ describe("SymbolTable", () => {
       const symbol: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
-        type: i32Type(),
+        type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
 
@@ -236,7 +236,7 @@ describe("SymbolTable", () => {
       const globalVar: VariableSymbol = {
         UUID: genUUID(),
         name: "globalVar",
-        type: i32Type(),
+        type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
         _mutable: true,
       };
 
