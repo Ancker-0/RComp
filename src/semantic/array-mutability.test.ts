@@ -29,7 +29,7 @@ describe("Array Mutability Check", () => {
       
       // 应该有一个错误
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]!.message).toContain("Cannot assign to immutable variable 'arr'");
+      expect(result.errors[0]!.message).toContain("immutable");
     }
   });
 

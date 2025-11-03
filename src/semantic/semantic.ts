@@ -578,7 +578,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   // 类型推断方法（可以访问符号表）
   private inferExprType(expr: ast.Expr): Type {
     // 如果表达式已经有 evaluated 信息，直接返回
-    
+
     /**
      * TODO: make use of evaluated information and be lazy
     if (expr.evaluated?.type) {
