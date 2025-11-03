@@ -90,7 +90,7 @@ export class ConstEvaluator implements Visitor {
             const varSymbol = this.symbolTable.lookupVariable(name);
 
             // If it's a constant with an evaluated value, propagate it
-            if (varSymbol && !varSymbol.mutable && varSymbol.evaluated) {
+            if (varSymbol && !varSymbol._mutable && varSymbol.evaluated) {
                 node.evaluated = varSymbol.evaluated;
             }
         }

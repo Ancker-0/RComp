@@ -284,8 +284,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       const symbol: VariableSymbol = {
         UUID: genUUID(),
         name: node.pattern.name,
-        type: varType,
-        mutable: node.pattern.mutable, // 添加可变性信息
+        type: { ...varType, owner: { kind: "left value", mutable: node.pattern.mutable } },
+        _mutable: node.pattern.mutable, // 添加可变性信息
       };
       // this.log('...', node)
       
@@ -330,8 +330,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     const symbol: VariableSymbol = {
       UUID: genUUID(),
       name: node.name,
-      type: constType,
-      mutable: false,  // Constants are immutable
+      type: { ...constType, owner: { kind: "left value", mutable: false } },
+      _mutable: false,  // Constants are immutable
       evaluated: constValue  // Store compile-time evaluated result
     };
 
@@ -436,8 +436,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       const symbol: VariableSymbol = {
         UUID: genUUID(),
         name: param.pattern.name,
-        type: paramType,
-        mutable: param.pattern.mutable,
+        type: { ...paramType, owner: { kind: "left value", mutable: param.pattern.mutable } },
+        _mutable: param.pattern.mutable,
       };
       
       try {
@@ -449,7 +449,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           throw error;
         }
       }
-    }
+    } else
+      this.reportError("Only support identifer pattern for function parameters")
   }
 
   // 辅助方法：分析类型
@@ -556,6 +557,18 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     return unitType();
   }
 
+  private autoDeref(t: Type, test?: (tp: Type) => boolean): Type {
+    while (t.kind == "refType" && (!test || !test(t)))
+      t = t.under
+    return t
+  }
+
+  // private autoDerefArr(t: ast.IndexExpr) {
+  //   return this.autoDeref(
+  //     this.inferExprType(t.arr),
+  //     x => x.kind == )
+  // }
+
   // 类型推断方法（可以访问符号表）
   private inferExprType(expr: ast.Expr): Type {
     // 如果表达式已经有 evaluated 信息，直接返回
@@ -583,6 +596,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         }
         // TODO: 处理复杂路径（如 mod::Type::method）
         return unitType();
+      case ast.ASTType.IndexExpr:
+        const pre = this.autoDeref(this.inferExprType(expr.arr), t => t.kind === "arrayType")
+        if (pre.kind !== "arrayType") {
+          this.reportError(`Expected array type, found ${pre.kind}`, expr.arr)
+          return unitType()
+        }
+        return pre.type
 
       default:
         // 其他情况使用原有的 inferType
@@ -700,7 +720,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         const varSymbol = this.symbolTable.lookupVariable(name);
         if (varSymbol) {
           // 检查变量是否声明为可变
-          if (!varSymbol.mutable) {
+          if (!varSymbol._mutable) {
             this.reportError(`Cannot assign to immutable variable '${name}'`, expr);
           }
         } else {
@@ -731,7 +751,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         const varSymbol = this.symbolTable.lookupVariable(name);
         if (varSymbol) {
           // 检查变量是否声明为可变
-          if (!varSymbol.mutable) {
+          if (!varSymbol._mutable) {
             this.reportError(`Cannot assign to immutable variable '${name}'`, expr);
           }
         } else {

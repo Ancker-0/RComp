@@ -38,7 +38,7 @@ describe("SymbolTable", () => {
         UUID: genUUID(),
         name: "globalVar",
         type: i32Type(),
-        mutable: true,
+        _mutable: true,
       };
       symbolTable.insertVariable("globalVar", globalVar);
 
@@ -50,7 +50,7 @@ describe("SymbolTable", () => {
         UUID: genUUID(),
         name: "globalVar",
         type: boolType(),
-        mutable: true,
+        _mutable: true,
       };
       symbolTable.insertVariable("globalVar", localVar);
 
@@ -77,7 +77,7 @@ describe("SymbolTable", () => {
         UUID: genUUID(),
         name: "testVar",
         type: i32Type(),
-        mutable: true,
+        _mutable: true,
       };
 
       // 插入变量
@@ -98,14 +98,14 @@ describe("SymbolTable", () => {
         UUID: genUUID(),
         name: "testVar",
         type: i32Type(),
-        mutable: true,
+        _mutable: true,
       };
 
       const symbol2: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
         type: boolType(),
-        mutable: true,
+        _mutable: true,
       };
 
       // 插入第一个变量
@@ -122,14 +122,14 @@ describe("SymbolTable", () => {
         UUID: genUUID(),
         name: "testVar",
         type: i32Type(),
-        mutable: true,
+        _mutable: true,
       };
 
       const symbol2: VariableSymbol = {
         UUID: genUUID(),
         name: "testVar",
         type: boolType(),
-        mutable: true,
+        _mutable: true,
       };
 
       // 在当前作用域插入变量
@@ -155,7 +155,7 @@ describe("SymbolTable", () => {
         UUID: genUUID(),
         name: "testVar",
         type: i32Type(),
-        mutable: true,
+        _mutable: true,
       };
 
       // 在当前作用域插入变量
@@ -237,7 +237,7 @@ describe("SymbolTable", () => {
         UUID: genUUID(),
         name: "globalVar",
         type: i32Type(),
-        mutable: true,
+        _mutable: true,
       };
 
       // 在全局作用域插入变量

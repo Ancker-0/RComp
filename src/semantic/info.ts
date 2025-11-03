@@ -14,8 +14,8 @@ export class SemanticError extends Error {
 export interface VariableSymbol {
   UUID: UUID;
   name: string;
-  type: Type;
-  mutable: boolean;  // 添加可变性信息
+  type: Type & { owner: { kind: "left value" } };
+  _mutable?: boolean;  // Deprecated...See type as left value
   evaluated?: Evaluated;  // 对于常量，存储编译时求值的结果（可扩展到任何类型）
 }
 
@@ -45,35 +45,43 @@ export type Type =
   | StructType
   | RefType
 
-export interface PrimitiveType {
+export interface TypeBase {
+  kind: string
+  owner?: {
+    kind: "left value"
+    mutable: boolean
+  }
+}
+
+export interface PrimitiveType extends TypeBase {
   kind: "primitiveType";
   name: "i32" | "u32" | "usize" | "isize" | "integer" | "bool" | "char" | "str" | "unit";
 }
 
-export interface TypePath {
+export interface TypePath extends TypeBase {
   kind: "typePath";
   symbol: TypeSymbol;
 }
 
-export interface ArrayType {
+export interface ArrayType extends TypeBase {
   kind: "arrayType";
   type: Type;
   expr: ast.Expr;
 }
 
-export interface FunctionType {
+export interface FunctionType extends TypeBase {
   kind: "functionType";
   params: Type[];
   returnType: Type;
 }
 
-export interface StructType {
+export interface StructType extends TypeBase {
   kind: "structType";
   fields: Map<string, Type>;
   methods?: Map<string, FunctionSymbol>;  // Methods associated with this struct
 }
 
-export interface RefType {
+export interface RefType extends TypeBase {
   kind: "refType"
   mutable: boolean
   under: Type
