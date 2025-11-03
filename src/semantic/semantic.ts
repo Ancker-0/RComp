@@ -558,8 +558,14 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   }
 
   private autoDeref(t: Type, test?: (tp: Type) => boolean): Type {
-    while (t.kind == "refType" && (!test || !test(t)))
+    while (t.kind == "refType" && (!test || !test(t))) {
+      const refMutable = t.mutable
+      // this.log("Derefing", t, "to", t.under)
       t = t.under
+      if (t.owner !== undefined)
+        throw Error(`Expected underlying type to be right-value type, found ${t}`)
+      t = { ...t, owner: { kind: "left value", mutable: refMutable } }
+    }
     return t
   }
 
@@ -572,9 +578,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   // 类型推断方法（可以访问符号表）
   private inferExprType(expr: ast.Expr): Type {
     // 如果表达式已经有 evaluated 信息，直接返回
+    
+    /**
+     * TODO: make use of evaluated information and be lazy
     if (expr.evaluated?.type) {
       return expr.evaluated.type;
     }
+    */
 
     switch (expr.kind) {
       case ast.ASTType.CallExpr:
@@ -597,12 +607,15 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         // TODO: 处理复杂路径（如 mod::Type::method）
         return unitType();
       case ast.ASTType.IndexExpr:
-        const pre = this.autoDeref(this.inferExprType(expr.arr), t => t.kind === "arrayType")
+        const inferred = this.inferExprType(expr.arr)
+        const pre = this.autoDeref(inferred, t => t.kind === "arrayType")
         if (pre.kind !== "arrayType") {
           this.reportError(`Expected array type, found ${pre.kind}`, expr.arr)
           return unitType()
         }
-        return pre.type
+        return pre?.owner !== undefined
+          ? { ...pre.type, owner: { kind: "left value", mutable: pre.owner.mutable } }
+          : pre.type
 
       default:
         // 其他情况使用原有的 inferType
@@ -702,6 +715,17 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   
   // 辅助方法：检查表达式是否可变
   private checkMutability(expr: ast.Expr): void {
+    const inferred = this.inferExprType(expr)
+    const chk = inferred.owner
+    if (!chk || !chk.mutable) {
+      this.reportError(`Cannot assign to immutable expression '${expr}'`, expr);
+      return
+    }
+
+    /**
+     * Deprecated. Now we are using inferred type, which records whether it's
+     * left-value or right-value type, to check mutability.
+     *******
     // 对于索引表达式 arr[index]，需要检查 arr 是否可变
     if (expr.kind === ast.ASTType.IndexExpr) {
       const indexExpr = expr as ast.IndexExpr;
@@ -719,8 +743,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         const name = pathExpr.segs[0]!;
         const varSymbol = this.symbolTable.lookupVariable(name);
         if (varSymbol) {
+          console.log(varSymbol.type)
           // 检查变量是否声明为可变
-          if (!varSymbol._mutable) {
+          if (!varSymbol.type.owner?.mutable) {
             this.reportError(`Cannot assign to immutable variable '${name}'`, expr);
           }
         } else {
@@ -732,6 +757,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     
     // 其他情况默认为不可变
     this.reportError("Cannot assign to this expression", expr);
+    */
   }
 
   log = (...args: any[]) => {
