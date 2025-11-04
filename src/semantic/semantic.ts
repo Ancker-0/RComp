@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -617,12 +617,34 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           ? { ...pre.type, owner: { kind: "left value", mutable: pre.owner.mutable } }
           : pre.type
 
+      case ast.ASTType.BlockExpr:
+        if (!expr.expr)
+          return unitType()
+        // TODO: check never type
+        return inferType(expr.expr)
+
+      case ast.ASTType.IfExpr:
+        const t = this.inferExprType(expr.then)
+        if (expr.else) {
+          const et = this.inferExprType(expr.else)
+          if (!this.sameTypeOrNever(t, et))
+            this.reportError("Expect two if-branches have same type", expr)
+          const merge = (a: Type, b: Type) => isNever(a) ? b : a
+          return merge(t, et)
+        }
+        return t
+
       default:
         // 其他情况使用原有的 inferType
         return inferType(expr);
     }
   }
-  
+
+  private sameTypeOrNever(a: Type, b: Type): boolean {
+    if (isNever(a) || isNever(b)) return true
+    return true
+  }
+
   // Handle struct expression
   onStructExpr(node: ast.NodeByKind<ast.ASTType.StructExpr>, self: ast.Visitor<void>): void {
     // Get the struct type from the path

@@ -110,6 +110,7 @@ export interface RefType extends ASTBase {
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
 export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | ReturnExpr | CastExpr | StructExpr | FieldExpr
+                   | BlockExpr
 export interface ExprBase extends ASTBase {
     evaluated?: Evaluated
 }
@@ -239,7 +240,7 @@ export interface StructField extends ASTBase {
     type: Type
 }
 
-export interface BlockExpr extends ASTBase {
+export interface BlockExpr extends ExprBase {
     kind: ASTType.BlockExpr
     statements: Statement[]
     expr?: Expr

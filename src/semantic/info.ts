@@ -55,7 +55,11 @@ export interface TypeBase {
 
 export interface PrimitiveType extends TypeBase {
   kind: "primitiveType";
-  name: "i32" | "u32" | "usize" | "isize" | "integer" | "bool" | "char" | "str" | "unit";
+  name: "i32" | "u32" | "usize" | "isize" | "integer" | "bool" | "char" | "str" | "unit" | "never";
+}
+
+export function isNever(t: Type) {
+  return t.kind === "primitiveType" && t.name === "never"
 }
 
 export interface TypePath extends TypeBase {
@@ -91,6 +95,11 @@ export interface RefType extends TypeBase {
 export const unitType: () => Type = () => ({ 
   kind: "primitiveType", 
   name: "unit" 
+});
+
+export const neverType: () => Type = () => ({
+  kind: "primitiveType",
+  name: "never"
 });
 
 export const i32Type: () => Type = () => ({
