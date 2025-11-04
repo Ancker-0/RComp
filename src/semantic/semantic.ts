@@ -637,6 +637,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       case ast.ASTType.BinaryExpr:
         return this.inferBinaryType(expr)
 
+      case ast.ASTType.BorrowExpr:
+        return {
+          kind: "refType",
+          under: this.inferExprType(expr.expr),
+          mutable: expr.mutable,
+        }
+
       default:
         // 其他情况使用原有的 inferType
         return inferType(expr);

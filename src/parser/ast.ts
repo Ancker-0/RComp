@@ -24,6 +24,7 @@ export enum ASTType {
     ArrayType,
     RefType,
 
+    BorrowExpr,
     BlockExpr,
     LiteralExpr,
     CallExpr,
@@ -110,7 +111,7 @@ export interface RefType extends ASTBase {
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
 export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | ReturnExpr | CastExpr | StructExpr | FieldExpr
-                   | BlockExpr
+                   | BlockExpr | BorrowExpr
 export interface ExprBase extends ASTBase {
     evaluated?: Evaluated
 }
@@ -240,6 +241,12 @@ export interface StructField extends ASTBase {
     type: Type
 }
 
+export interface BorrowExpr extends ExprBase {
+    kind: ASTType.BorrowExpr
+    expr: Expr
+    mutable: boolean
+}
+
 export interface BlockExpr extends ExprBase {
     kind: ASTType.BlockExpr
     statements: Statement[]
@@ -297,6 +304,7 @@ export type ASTNode =
     | StructExpr
     | FieldExpr
     | BlockExpr
+    | BorrowExpr
 
     // Statement 节点
     | EmptyStatement

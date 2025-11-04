@@ -91,6 +91,7 @@ function prefixPower(token: OperatorToken): [BindPower, BindPower] {
         case "!":
         case "*":
         case "&":
+        case "&&":  // borrow expression
             return [-Infinity, 11]
         default:
             throw Error(`Sorry, unsupported operator ${token.raw}`)
@@ -187,14 +188,40 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
         } else throw new Error("Unexpected token")
     } else if (f.type == TokenType.Operator) {
         const [_, rbp] = prefixPower(f)
-        const rest = parseExpr({ ...src, start }, rbp)
-        ret = {
-            kind: ast.ASTType.UnaryExpr,
-            operator: f.raw,
-            operand: rest[0],
-            position: "prefix",
+        if (f.raw === "&" || f.raw === "&&") {  // borrow expr
+            let mutable: boolean
+            let rest
+            if (start < src.token.length
+                && src.token[start]?.type === TokenType.Keyword
+                && src.token[start]?.raw === "mut") {
+                mutable = true
+                rest = parseExpr({ ...src, start: start + 1 }, rbp)
+            } else {
+                mutable = false
+                rest = parseExpr({ ...src, start: start }, rbp)
+            }
+            ret = {
+                kind: ast.ASTType.BorrowExpr,
+                expr: rest[0],
+                mutable
+            }
+            if (f.raw === "&&")
+                ret = {
+                    kind: ast.ASTType.BorrowExpr,
+                    expr: ret,
+                    mutable: false,
+                }
+            start = rest[1].start
+        } else {
+            const rest = parseExpr({ ...src, start }, rbp)
+            ret = {
+                kind: ast.ASTType.UnaryExpr,
+                operator: f.raw,
+                operand: rest[0],
+                position: "prefix",
+            }
+            start = rest[1].start
         }
-        start = rest[1].start
     } else if (f.type == TokenType.Keyword) {
         switch (f.raw) {
             case "break":
