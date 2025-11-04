@@ -147,47 +147,7 @@ function inferIndexType(index: ast.IndexExpr): Type {
 
 // Infer binary expression type
 function inferBinaryType(binary: ast.BinaryExpr): Type {
-  // Comparison operators return bool type
-  const comparisonOps = ["==", "!=", "<", ">", "<=", ">="];
-  if (comparisonOps.includes(binary.operator)) {
-    return boolType();
-  }
-
-  // Logical operators return bool type
-  if (binary.operator === "&&" || binary.operator === "||") {
-    return boolType();
-  }
-
-  // Arithmetic and bitwise operators: handle integer type specialization
-  const leftType = inferType(binary.operand[0]!);
-  const rightType = inferType(binary.operand[1]!);
-
-  // If both are primitive types
-  if (leftType.kind === "primitiveType" && rightType.kind === "primitiveType") {
-    const leftName = leftType.name;
-    const rightName = rightType.name;
-
-    // integer + integer = integer
-    if (leftName === "integer" && rightName === "integer") {
-      return integerType();
-    }
-
-    // integer + <concrete type> = <concrete type>
-    if (leftName === "integer" && rightName !== "integer") {
-      return rightType;
-    }
-
-    // <concrete type> + integer = <concrete type>
-    if (leftName !== "integer" && rightName === "integer") {
-      return leftType;
-    }
-
-    // Both are concrete types: return left type (will be checked for compatibility elsewhere)
-    return leftType;
-  }
-
-  // Fallback: return left operand type
-  return leftType;
+  throw Error("Deprecated")
 }
 
 // 推断一元表达式类型

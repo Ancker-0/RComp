@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -621,7 +621,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         if (!expr.expr)
           return unitType()
         // TODO: check never type
-        return inferType(expr.expr)
+        return this.inferExprType(expr.expr)
 
       case ast.ASTType.IfExpr:
         const t = this.inferExprType(expr.then)
@@ -634,10 +634,57 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         }
         return t
 
+      case ast.ASTType.BinaryExpr:
+        return this.inferBinaryType(expr)
+
       default:
         // 其他情况使用原有的 inferType
         return inferType(expr);
     }
+  }
+
+  private inferBinaryType(binary: ast.BinaryExpr): Type {
+    // Comparison operators return bool type
+    const comparisonOps = ["==", "!=", "<", ">", "<=", ">="];
+    if (comparisonOps.includes(binary.operator)) {
+      return boolType();
+    }
+
+    // Logical operators return bool type
+    if (binary.operator === "&&" || binary.operator === "||") {
+      return boolType();
+    }
+
+    // Arithmetic and bitwise operators: handle integer type specialization
+    const leftType = this.inferExprType(binary.operand[0]!);
+    const rightType = this.inferExprType(binary.operand[1]!);
+
+    // If both are primitive types
+    if (leftType.kind === "primitiveType" && rightType.kind === "primitiveType") {
+      const leftName = leftType.name;
+      const rightName = rightType.name;
+
+      // integer + integer = integer
+      if (leftName === "integer" && rightName === "integer") {
+        return integerType();
+      }
+
+      // integer + <concrete type> = <concrete type>
+      if (leftName === "integer" && rightName !== "integer") {
+        return rightType;
+      }
+
+      // <concrete type> + integer = <concrete type>
+      if (leftName !== "integer" && rightName === "integer") {
+        return leftType;
+      }
+
+      // Both are concrete types: return left type (will be checked for compatibility elsewhere)
+      return leftType;
+    }
+
+    // Fallback: return left operand type
+    return leftType;
   }
 
   private sameTypeOrNever(a: Type, b: Type): boolean {
