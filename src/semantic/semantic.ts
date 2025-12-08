@@ -151,8 +151,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // Register each method
     for (const method of node.fn) {
       // Analyze parameter types (excluding self parameter)
-      const paramTypes = method.params.map(p => this.analyzeType(p.type));
-      const returnType = this.analyzeType(method.returnType);
+      const analyzeTypeImpl = (type: ast.Type): Type => {
+        if (type.kind == ast.ASTType.TypePath && type.value == "Self")
+          return structType
+        return this.analyzeType(type)
+      }
+      const paramTypes = method.params.map(p => analyzeTypeImpl(p.type));
+      const returnType = analyzeTypeImpl(method.returnType);
 
       const methodSymbol: FunctionSymbol = {
         UUID: genUUID(),
@@ -571,6 +576,24 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       } else {
         this.reportError(`Unknown function '${funcName}'`, expr);
         return unitType();
+      }
+    }
+    if (expr.value.kind === ast.ASTType.PathExpr && expr.value.segs.length === 2) {
+      const typeSymbol = this.symbolTable.lookupType(expr.value.segs[0]!)
+      if (!typeSymbol) {
+        this.reportError(`Unknown type ${expr.value.segs[0]} on path expr`)
+        return unitType()
+      }
+      if (typeSymbol.type.kind != "structType") {
+        this.reportError(`Expect ${expr.value.segs[0]} to be struct type, found ${typeSymbol.type.kind}`)
+        return unitType()
+      }
+      const funcSymbol = typeSymbol.type.methods?.get(expr.value.segs[1]!)
+      if (funcSymbol)
+        return funcSymbol.returnType
+      else {
+        this.reportError(`Unknown field ${expr.value.segs.join("::")}`, expr)
+        return unitType()
       }
     }
 
