@@ -222,6 +222,10 @@ export interface FuncItem extends ASTBase {
     params: Param[]
     returnType: Type
     body?: BlockExpr
+    self?: {
+      ref: boolean
+      mutable: boolean
+    }
 }
 export interface ConstItem extends ASTBase {
     kind: ASTType.ConstItem

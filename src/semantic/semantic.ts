@@ -199,6 +199,15 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // 进入函数作用域
     this.symbolTable.enterScope();
 
+    const Self = this.symbolTable.lookupType("Self")
+    if (Self && node.self) {  // inside some Impl
+      this.symbolTable.insertVariable("self", {
+        UUID: genUUID(),
+        name: "self",
+        type: { ...Self.type, owner: { kind: "left value", mutable: node.self.mutable } },
+      })
+    }
+
     try {
       // 处理函数参数
       for (const param of node.params) {
@@ -465,7 +474,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   
   // 默认处理方法
   default(node: ast.ASTNode, self: ast.Visitor<void>): void {
-    this.log('Visitor: found unhandled node:', ast.ASTType[node.kind])
+    // this.log('Visitor: found unhandled node:', ast.ASTType[node.kind])
     // 遍历子节点
     ast.walk(node, self);
   }
@@ -703,6 +712,19 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           under: this.inferExprType(expr.expr),
           mutable: expr.mutable,
         }
+
+      case ast.ASTType.FieldExpr:
+        const lhs = expr.object
+        const lhsType = this.inferExprType(lhs)
+        if (lhsType.kind != "structType") {
+          this.reportError(`Expect ${lhsType} to be a struct`)
+          return unitType()
+        }
+        if (!lhsType.fields.has(expr.field)) {
+          this.reportError(`type of ${lhs} has no field ${expr.field}`)
+          return unitType()
+        }
+        return { ...lhsType.fields.get(expr.field)!, owner: lhsType.owner }
 
       default:
         // 其他情况使用原有的 inferType

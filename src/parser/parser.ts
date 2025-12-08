@@ -150,9 +150,10 @@ export const ifE: ParserK<ast.IfExpr> = fmap(
     })
 )
 
-const selfParam = or1(
-    seq(maybe(operator("&")), maybe(keyword("mut")), keyword("self")),
-    seq(maybe(keyword("mut")), keyword("self"), id(TokenType.Colon), type))
+// const selfParam = or1(
+//     seq(maybe(operator("&")), maybe(keyword("mut")), keyword("self")),
+//     seq(maybe(keyword("mut")), keyword("self"), id(TokenType.Colon), type))
+const selfParam = seq(maybe(operator("&")), maybe(keyword("mut")), keyword("self"))
 
 const funcParam: ParserK<ast.Param> = fmap(
     seq(pattern, id(TokenType.Colon), type),
@@ -182,13 +183,23 @@ export const fn: ParserK<ast.FuncItem> = fmap(
         // - [maybe(selfParam+comma), funcParam, many([comma, funcParam]), maybe(comma)] - regular params
         let params: ast.Param[] = []
         const paramsPart = res[4]
+        let self: undefined | { ref: boolean, mutable: boolean }
 
         if (paramsPart && Array.isArray(paramsPart) && paramsPart.length === 4 && paramsPart[1] && 'kind' in paramsPart[1]) {
             // Second form: regular function parameters
             const firstParam = paramsPart[1] as ast.Param
             const restParams = (paramsPart[2] as any[]).map((x: any) => x[1] as ast.Param)
             params = [firstParam, ...restParams]
-        }
+            if (paramsPart[0])
+                self = {
+                    ref: Boolean(paramsPart[0][0][0]),
+                    mutable: Boolean(paramsPart[0][0][1]),
+                }
+        } else if (paramsPart && Array.isArray(paramsPart) && paramsPart.length == 2)
+            self = {
+                ref: Boolean(paramsPart[0][0]),
+                mutable: Boolean(paramsPart[0][1]),
+            }
         // Otherwise it's either empty or self param, which we're not handling yet
 
         return {
@@ -196,6 +207,7 @@ export const fn: ParserK<ast.FuncItem> = fmap(
             name: res[2].raw,
             quantifier: res[0] === null ? [] : ["const"],
             params,
+            self,
             returnType: res[6] ? res[6][1] : ast.unitType(),
             ...('raw' in res[7] ? {} : { body: res[7] }),
         }
