@@ -243,6 +243,28 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     }
   }
 
+  private typeCastable(dest: Type, src: Type): boolean {
+    if (areTypesEqual(dest, src, this.symbolTable))
+      return true
+    switch (src.kind) {
+      case "refType":
+        if (dest.kind != "refType")
+          return false
+        if (!src.mutable && dest.mutable)
+          return false
+        return this.typeCastable(dest.under, src.under)
+      case "primitiveType":
+        if (dest.kind != "primitiveType")
+          return false
+        if (src.name == dest.name)
+          return true
+        if (src.name == "integer" && ["never"].indexOf(dest.name) != -1)
+          return true
+        return false
+    }
+    return false
+  }
+
   onLet(node: ast.NodeByKind<ast.ASTType.LetStatement>, self: ast.Visitor<void>): void {
     // 分析右侧表达式（如果存在）
     let inferredType: Type | undefined;
@@ -265,7 +287,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // 如果声明了类型且有初始化表达式，检查类型是否匹配
     // 但如果类型分析时已经报错（如未知类型），则跳过类型匹配检查以避免级联错误
     if (node.type.kind !== ast.ASTType.UnitType && inferredType && !hasTypeError) {
-      if (!areTypesEqual(varType, inferredType, this.symbolTable)) {
+      if (!this.typeCastable(varType, inferredType)) {
         this.reportError(
           `Type mismatch in variable declaration: expected ${this.typeToString(varType)}, found ${this.typeToString(inferredType)}`,
           node
