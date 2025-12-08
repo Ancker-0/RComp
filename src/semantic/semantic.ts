@@ -69,6 +69,19 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         this.visit(item, self);
   }
 
+  // TODO: fn using "self" as parameters
+  onImpl(node: ast.NodeByKind<ast.ASTType.InherentImpl>, self: ast.Visitor<void>): void {
+    this.symbolTable.enterScope()
+    const myType = this.symbolTable.lookupType(node.type.value)
+    if (!myType) {
+      this.reportError(`Impl for non-existing type ${node.type.value}`)
+      return
+    }
+    this.symbolTable.insertType("Self", myType)
+    ast.walk(node, self);
+    this.symbolTable.exitScope()
+  }
+
   // 注册函数签名（不分析函数体）
   private registerFunction(node: ast.FuncItem): void {
     const paramTypes = node.params.map(p => this.analyzeType(p.type));
@@ -378,6 +391,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   }
 
   onPathExpr(node: ast.NodeByKind<ast.ASTType.PathExpr>, self: ast.Visitor<void>): void {
+    // this.log("PathExpr", node)
     // 简单路径（单个标识符）
     if (node.segs.length === 1) {
       const name = node.segs[0]!;
@@ -451,6 +465,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   
   // 默认处理方法
   default(node: ast.ASTNode, self: ast.Visitor<void>): void {
+    this.log('Visitor: found unhandled node:', ast.ASTType[node.kind])
     // 遍历子节点
     ast.walk(node, self);
   }

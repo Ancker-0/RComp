@@ -350,6 +350,7 @@ export interface Visitor<R = void> {
     onCastExpr?(node: NodeByKind<ASTType.CastExpr>, self: Visitor<R>): R
     onStructExpr?(node: NodeByKind<ASTType.StructExpr>, self: Visitor<R>): R
     onFieldExpr?(node: NodeByKind<ASTType.FieldExpr>, self: Visitor<R>): R
+    onImpl?(node: NodeByKind<ASTType.InherentImpl>, self: Visitor<R>): R
     // TODO
     default?(node: ASTNode, self: Visitor<R>): R
 }
@@ -400,6 +401,8 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return visitor.onStructExpr?.(node, visitor)
     case ASTType.FieldExpr:
       return visitor.onFieldExpr?.(node, visitor)
+    case ASTType.InherentImpl:
+      return visitor.onImpl?.(node, visitor)
     default:
       return visitor.default?.(node, visitor)
   }
@@ -433,6 +436,7 @@ export function getChildren(node: ASTNode): ASTNode[] {
         onCastExpr: n => [n.expr, n.targetType],
         onStructExpr: n => [n.path, ...n.fields.map(f => f.value)],
         onFieldExpr: n => [n.object],
+        onImpl: n => [n.type, ...n.const, ...n.fn],
         default: n => [],
     }) ?? []
 }
