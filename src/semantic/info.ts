@@ -39,7 +39,7 @@ export interface FunctionSymbol {
 // 类型定义
 export type Type = 
   | PrimitiveType
-  | TypePath
+  // | TypePath
   | ArrayType
   | FunctionType
   | StructType
@@ -62,10 +62,10 @@ export function isNever(t: Type) {
   return t.kind === "primitiveType" && t.name === "never"
 }
 
-export interface TypePath extends TypeBase {
-  kind: "typePath";
-  symbol: TypeSymbol;
-}
+// export interface TypePath extends TypeBase {
+//   kind: "typePath";
+//   symbol: TypeSymbol;
+// }
 
 export interface ArrayType extends TypeBase {
   kind: "arrayType";

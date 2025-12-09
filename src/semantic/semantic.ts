@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -33,6 +33,72 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   private reportError(message: string, node?: ast.ASTNode): void {
     const error = new SemanticError(message, node);
     this.errors.push(error);
+  }
+
+  alg: EndTAlgebra<EndTRes> = (e: EndTypeF<EndTRes>) => {
+    if ('type' in e) {
+      return { succ: true, type: e.type }
+    } else {
+      if (e.sub.length == 0)
+        return {
+          succ: true,
+          type: e.leading,
+        }
+      if (!e.sub.every(val => val.succ
+        && val.type.kind == (e.sub[0]! as any).type.kind))
+        return { succ: false }
+      const sub = e.sub.map(v => (v as any).type as Type)
+      const unify = (u: Type, v: Type): Type | null => {
+        if (u.kind != v.kind)
+          return null
+        const owner = u.owner ? u.owner : v.owner  // TODO: be consistent
+        switch (u.kind) {
+          case "arrayType":
+            if (v.kind != u.kind) return null
+            const szu = this.evaluateExpr(u.expr)
+            const szv = this.evaluateExpr(v.expr)
+            const type = unify(u.type, v.type)
+            if (szu != szv || !type)
+              return null
+            return {
+              kind: "arrayType",
+              expr: u.expr,
+              type,
+              owner
+            }
+          case "primitiveType":
+            if (v.kind != u.kind) return null
+            if (u.name == v.name)
+              return u
+            return null  // TODO: unify integer type
+          case "functionType":
+            if (v.kind != u.kind) return null
+            const returnT = unify(u.returnType, v.returnType)
+            if (!returnT || u.params.length != v.params.length)
+              return null
+            const paramT = u.params.map((t, i) => unify(t, v.params[i]!))
+            if (paramT.some(t => t == null))
+              return null
+            return {
+              kind: "functionType",
+              params: paramT as Type[],
+              returnType: returnT,
+              owner,
+            }
+          case "structType":
+            return null  // WTF: I need UUID...TODO
+          case "refType":
+            return null  // TODO
+        }
+        return null
+      }
+      return { succ: false }
+    }
+  }
+
+  private evaluateExpr(expr: ast.Expr): Evaluated | undefined {
+    // TODO: migrate?
+    return evaluateExpr(expr, this.symbolTable)
   }
 
   // 访问者模式实现
