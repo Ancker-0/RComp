@@ -135,6 +135,25 @@ export const boolType: () => Type = () => ({
   name: "bool"
 });
 
+export type EndTypeF<A> = { type: Type } | {
+  leading: Type
+  sub: A[]
+}
+export type EndType = { unfix: EndTypeF<EndType> }
+export const fix = (x: EndTypeF<EndType>): EndType => ({ unfix: x })
+export const unfix = (x: EndType): EndTypeF<EndType> => x.unfix
+export type EndTAlgebra<A> = (e: EndTypeF<A>) => A
+export type EndTRes = { succ: false } | { succ: true, type: Type }
+export const cata = <A>(alg: EndTAlgebra<A>, e: EndType): A => {
+  const under = unfix(e)
+  if ('type' in under)
+    return alg(under)
+  return alg({
+    leading: under.leading,
+    sub: under.sub.map(e => cata(alg, e))
+  })
+}
+
 // 作用域接口
 export interface Scope {
   variables: Map<string, VariableSymbol>;
