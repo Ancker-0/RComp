@@ -97,6 +97,9 @@ export const unitType: () => Type = () => ({
   name: "unit" 
 });
 
+export const isUnit = (t: Type): t is { kind: "primitiveType", name: "unit" } => 
+  (t.kind == "primitiveType" && t.name == "unit")
+
 export const neverType: () => Type = () => ({
   kind: "primitiveType",
   name: "never"
@@ -139,6 +142,7 @@ export interface Scope {
   functions: Map<string, FunctionSymbol>;
   parent: Scope | null;
   depth: number;
+  endType: Type[]
 }
 
 // 符号表接口
@@ -161,6 +165,9 @@ export interface SymbolTable {
   insertFunction(name: string, symbol: FunctionSymbol): void;
   lookupFunction(name: string): FunctionSymbol | undefined;
   lookupFunctionInCurrentScope(name: string): FunctionSymbol | undefined;
+
+  collectEndType(type: Type): void;
+  getEndTypes(): Type[];
 }
 
 // 符号表实现
@@ -175,7 +182,8 @@ export class SymbolTableImpl implements SymbolTable {
       types: new Map(),
       functions: new Map(),
       parent: null,
-      depth: 0
+      depth: 0,
+      endType: [],
     };
 
     this.scopes = [this.globalScope];
@@ -241,7 +249,8 @@ export class SymbolTableImpl implements SymbolTable {
       types: new Map(),
       functions: new Map(),
       parent: currentScope,
-      depth: currentScope.depth + 1
+      depth: currentScope.depth + 1,
+      endType: [],
     };
     this.scopes.push(newScope);
   }
@@ -341,6 +350,13 @@ export class SymbolTableImpl implements SymbolTable {
   lookupFunctionInCurrentScope(name: string): FunctionSymbol | undefined {
     const currentScope = this.getCurrentScope();
     return currentScope.functions.get(name);
+  }
+
+  collectEndType(type: Type): void {
+    this.getCurrentScope().endType.push(type)
+  }
+  getEndTypes(): Type[] {
+    return this.getCurrentScope().endType
   }
 }
 

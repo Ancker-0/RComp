@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -217,6 +217,18 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       // 处理函数体
       if (node.body) {
         this.visit(node.body, self);
+        const retType = this.analyzeType(node.returnType)
+        const stmts = node.body.statements
+        const returnStmt = (stmt: ast.Statement) => stmt.kind == ast.ASTType.ExprStatement && stmt.expr
+        const returnExpr = stmts.length == 0 ? undefined : (returnStmt(stmts[stmts.length - 1]!) || undefined)
+        const endTypes = this.symbolTable.getEndTypes()
+          .concat(node.body.expr ? [this.inferExprType(node.body.expr)] : [])
+          .concat(returnExpr ? [this.inferExprType(returnExpr)] : [])
+        if (!isUnit(retType)) {
+          if (node.body.expr === undefined && stmts.length == 0)
+            this.reportError(`Expect return value, found none`)
+          return
+        }
       }
     } finally {
       // 确保总是退出作用域

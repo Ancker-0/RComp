@@ -116,6 +116,12 @@ function atomExpr(t: Token): ast.Expr {
                 value: numericValue,
                 suffix: t.suf.length > 0 ? t.suf : undefined
             }
+        case TokenType.StringLiteral:
+            return {
+                kind: ast.ASTType.LiteralExpr,
+                type: "string",
+                value: t.raw,
+            }
         case TokenType.Identifier:
             return {
                 kind: ast.ASTType.PathExpr,
@@ -149,6 +155,8 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
     const f = token[start++]!
     // let ret: [Sexp, Info] = [token[start++]!, next(src)]!
     if (f.type == TokenType.LeftParen) {
+        if (start < token.length && token[start]!.type == TokenType.RightParen) {
+        }  // TODO: unit value
         const rest = parseExpr({ ...src, start }, -Infinity)
         ret = rest[0], start = rest[1].start
         if (!parMatch(f, src.token[start++]!))

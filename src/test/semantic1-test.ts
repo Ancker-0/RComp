@@ -88,7 +88,7 @@ async function runSemantic1Tests(testPattern?: string) {
       // 检查测试用例的预期结果
       const metadata = parseTestMetadata(sourceCode);
 
-      if (!parsed) {
+      if (!parsed || parsed[1].start < parsed[1].token.length) {
         // 语法分析失败，将其视为错误
         if (metadata.verdict === "Success" || metadata.verdict === "Pass") {
           console.log(`❌ ${testDir}: 失败 (预期成功，但语法分析失败)`);
