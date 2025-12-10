@@ -23,7 +23,7 @@ export const referencePattern: ParserK<ast.ReferencePattern> = fmap(
 export const pattern: ParserK<ast.Pattern> = or(referencePattern, identifierPattern)
 
 export const exprWithBlock = lazy(() => or(loop, whileE, ifE))
-export const expr = or(exprRaw, exprWithBlock)  // TODO: add expression with block
+export const expr = or(lazy(()=>exprRaw), exprWithBlock)  // TODO: add expression with block
 
 // export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
 //     r => {
@@ -140,7 +140,7 @@ export const ifE: ParserK<ast.IfExpr> = fmap(
         expr,
         id(TokenType.RightParen),
         block,
-        maybe(seq(keyword("else"), or(lazy(() => ifE), block)))
+        or(seq(keyword("else"), or(lazy(() => ifE), block)), skip)
     ),
     r => ({
         kind: ast.ASTType.IfExpr,

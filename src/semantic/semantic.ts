@@ -86,7 +86,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
               owner,
             }*/
           case "structType":
-            return null  // WTF: I need UUID...TODO
+            if (v.kind != u.kind) return null
+            return u.UUID == v.UUID ? u : null
           case "refType":
             return null  // TODO
         }
