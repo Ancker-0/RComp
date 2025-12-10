@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -45,9 +45,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           type: e.leading,
         }
       if (!e.sub.every(val => val.succ
-        && val.type.kind == (e.sub[0]! as any).type.kind))
+        && val.type.kind == (e.sub[0]! as EndTRes & { succ: true }).type.kind))
         return { succ: false }
-      const sub = e.sub.map(v => (v as any).type as Type)
+      const sub = e.sub.map(v => (v as EndTRes & { succ: true }))
       const unify = (u: Type, v: Type): Type | null => {
         if (u.kind != v.kind)
           return null
@@ -71,7 +71,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
             if (u.name == v.name)
               return u
             return null  // TODO: unify integer type
-          case "functionType":
+          /*case "functionType":
             if (v.kind != u.kind) return null
             const returnT = unify(u.returnType, v.returnType)
             if (!returnT || u.params.length != v.params.length)
@@ -84,7 +84,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
               params: paramT as Type[],
               returnType: returnT,
               owner,
-            }
+            }*/
           case "structType":
             return null  // WTF: I need UUID...TODO
           case "refType":
@@ -185,20 +185,14 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // Create struct type
     const structType: StructType = {
       kind: "structType",
+      UUID: genUUID(),
+      name: node.name,
       fields,
       methods: new Map()  // Will be populated by registerImpl
     };
 
-    // Create type symbol
-    const typeSymbol: TypeSymbol = {
-      UUID: genUUID(),
-      name: node.name,
-      type: structType,
-      declaration: node
-    };
-
     try {
-      this.symbolTable.insertType(node.name, typeSymbol);
+      this.symbolTable.insertType(node.name, structType);
     } catch (error) {
       if (error instanceof SemanticError) {
         this.reportError(error.message);
@@ -220,12 +214,12 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     }
 
     // Ensure it's a struct type
-    if (typeSymbol.type.kind !== "structType") {
+    if (typeSymbol.kind !== "structType") {
       this.reportError(`Cannot implement methods for non-struct type: ${typeName}`, node);
       return;
     }
 
-    const structType = typeSymbol.type as StructType;
+    const structType = typeSymbol
 
     // Register each method
     for (const method of node.fn) {
@@ -270,7 +264,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       this.symbolTable.insertVariable("self", {
         UUID: genUUID(),
         name: "self",
-        type: { ...Self.type, owner: { kind: "left value", mutable: node.self.mutable } },
+        type: { ...Self, owner: { kind: "left value", mutable: node.self.mutable } },
       })
     }
 
@@ -593,7 +587,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         const typePath = type as ast.TypePath;
         const typeSymbol = this.symbolTable.lookupType(typePath.value);
         if (typeSymbol) {
-          return typeSymbol.type;
+          return typeSymbol
         } else {
           this.reportError(`Unknown type: ${typePath.value}`, type);
           // 返回默认类型
@@ -687,11 +681,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         this.reportError(`Unknown type ${expr.value.segs[0]} on path expr`)
         return unitType()
       }
-      if (typeSymbol.type.kind != "structType") {
-        this.reportError(`Expect ${expr.value.segs[0]} to be struct type, found ${typeSymbol.type.kind}`)
+      if (typeSymbol.kind != "structType") {
+        this.reportError(`Expect ${expr.value.segs[0]} to be struct type, found ${typeSymbol.kind}`)
         return unitType()
       }
-      const funcSymbol = typeSymbol.type.methods?.get(expr.value.segs[1]!)
+      const funcSymbol = typeSymbol.methods?.get(expr.value.segs[1]!)
       if (funcSymbol)
         return funcSymbol.returnType
       else {
@@ -867,10 +861,10 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       const typeName = node.path.segs[0]!;
       const typeSymbol = this.symbolTable.lookupType(typeName);
 
-      if (typeSymbol && typeSymbol.type.kind === "structType") {
+      if (typeSymbol && typeSymbol.kind === "structType") {
         // Set the evaluated type of this expression
         node.evaluated = {
-          type: typeSymbol.type,
+          type: typeSymbol,
           value: undefined
         };
 

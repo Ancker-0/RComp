@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, TypeSymbol, i32Type, boolType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, i32Type, boolType, usizeType } from "./info";
 import { genUUID } from "./util";
 
 describe("SymbolTable", () => {
@@ -176,11 +176,7 @@ describe("SymbolTable", () => {
 
   describe("Type Symbol Management", () => {
     test("should insert and lookup types", () => {
-      const typeSymbol: TypeSymbol = {
-        UUID: genUUID(),
-        name: "MyType",
-        type: i32Type()
-      };
+      const typeSymbol = i32Type();
 
       // 插入类型
       expect(() => {
@@ -190,21 +186,12 @@ describe("SymbolTable", () => {
       // 查找类型
       const foundType = symbolTable.lookupType("MyType");
       expect(foundType).toBeDefined();
-      expect(foundType?.name).toBe("MyType");
+      expect(foundType?.kind).toBe("primitiveType");
     });
 
     test("should prevent duplicate type declarations in same scope", () => {
-      const typeSymbol1: TypeSymbol = {
-        UUID: genUUID(),
-        name: "MyType",
-        type: i32Type()
-      };
-
-      const typeSymbol2: TypeSymbol = {
-        UUID: genUUID(),
-        name: "MyType",
-        type: boolType()
-      };
+      const typeSymbol1 = i32Type()
+      const typeSymbol2 = usizeType()
 
       // 插入第一个类型
       symbolTable.insertType("MyType", typeSymbol1);
@@ -219,15 +206,15 @@ describe("SymbolTable", () => {
       // 检查内置类型是否存在
       const i32Type = symbolTable.lookupType("i32");
       expect(i32Type).toBeDefined();
-      expect(i32Type?.type.kind).toBe("primitiveType");
+      expect(i32Type?.kind).toBe("primitiveType");
 
       const boolType = symbolTable.lookupType("bool");
       expect(boolType).toBeDefined();
-      expect(boolType?.type.kind).toBe("primitiveType");
+      expect(boolType?.kind).toBe("primitiveType");
 
       const unitType = symbolTable.lookupType("()");
       expect(unitType).toBeDefined();
-      expect(unitType?.type.kind).toBe("primitiveType");
+      expect(unitType?.kind).toBe("primitiveType");
     });
   });
 

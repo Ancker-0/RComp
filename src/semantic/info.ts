@@ -19,14 +19,6 @@ export interface VariableSymbol {
   evaluated?: Evaluated;  // 对于常量，存储编译时求值的结果（可扩展到任何类型）
 }
 
-// 类型符号
-export interface TypeSymbol {
-  UUID: UUID;
-  name: string;
-  type: Type;
-  declaration?: ast.ASTNode;
-}
-
 // 函数符号
 export interface FunctionSymbol {
   UUID: UUID;
@@ -41,7 +33,7 @@ export type Type =
   | PrimitiveType
   // | TypePath
   | ArrayType
-  | FunctionType
+  // | FunctionType
   | StructType
   | RefType
 
@@ -73,14 +65,16 @@ export interface ArrayType extends TypeBase {
   expr: ast.Expr;
 }
 
-export interface FunctionType extends TypeBase {
-  kind: "functionType";
-  params: Type[];
-  returnType: Type;
-}
+// export interface FunctionType extends TypeBase {
+//   kind: "functionType";
+//   params: TypeSymbol[];
+//   returnType: TypeSymbol;
+// }
 
 export interface StructType extends TypeBase {
   kind: "structType";
+  UUID: UUID,
+  name: string,
   fields: Map<string, Type>;
   methods?: Map<string, FunctionSymbol>;  // Methods associated with this struct
 }
@@ -157,7 +151,7 @@ export const cata = <A>(alg: EndTAlgebra<A>, e: EndType): A => {
 // 作用域接口
 export interface Scope {
   variables: Map<string, VariableSymbol>;
-  types: Map<string, TypeSymbol>;
+  types: Map<string, Type>;
   functions: Map<string, FunctionSymbol>;
   parent: Scope | null;
   depth: number;
@@ -176,9 +170,9 @@ export interface SymbolTable {
   lookupVariableInCurrentScope(name: string): VariableSymbol | undefined;
   
   // 类型符号管理
-  insertType(name: string, symbol: TypeSymbol): void;
-  lookupType(name: string): TypeSymbol | undefined;
-  lookupTypeInCurrentScope(name: string): TypeSymbol | undefined;
+  insertType(name: string, symbol: Type): void;
+  lookupType(name: string): Type | undefined;
+  lookupTypeInCurrentScope(name: string): Type | undefined;
 
   // 函数符号管理
   insertFunction(name: string, symbol: FunctionSymbol): void;
@@ -228,13 +222,9 @@ export class SymbolTableImpl implements SymbolTable {
     ];
 
     for (const [name, typeName] of primitiveTypes) {
-      const symbol: TypeSymbol = {
-        UUID: genUUID(),
-        name: name,
-        type: {
-          kind: "primitiveType",
-          name: typeName
-        }
+      const symbol: Type = {
+        kind: "primitiveType",
+        name: typeName
       };
       this.globalScope.types.set(name, symbol);
     }
@@ -312,7 +302,7 @@ export class SymbolTableImpl implements SymbolTable {
   }
 
   // 类型符号管理
-  insertType(name: string, symbol: TypeSymbol): void {
+  insertType(name: string, symbol: Type): void {
     const currentScope = this.getCurrentScope();
     
     // 检查当前作用域是否已存在同名类型
@@ -324,7 +314,7 @@ export class SymbolTableImpl implements SymbolTable {
     currentScope.types.set(name, symbol);
   }
 
-  lookupType(name: string): TypeSymbol | undefined {
+  lookupType(name: string): Type | undefined {
     // 从当前作用域开始，向上查找
     for (let i = this.scopes.length - 1; i >= 0; i--) {
       const scope = this.scopes[i]!;
@@ -336,7 +326,7 @@ export class SymbolTableImpl implements SymbolTable {
     return undefined;
   }
 
-  lookupTypeInCurrentScope(name: string): TypeSymbol | undefined {
+  lookupTypeInCurrentScope(name: string): Type | undefined {
     const currentScope = this.getCurrentScope();
     return currentScope.types.get(name);
   }
