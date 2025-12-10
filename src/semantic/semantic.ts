@@ -942,6 +942,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       this.checkMutability(node.operand[0]);
       // 检查类型匹配
       this.checkAssignmentTypes(node.operand[0], node.operand[1]);
+    } else if (["+", "-", "*", "/"].indexOf(node.operator) != -1) {
+      const lhsT = this.inferExprType(node.operand[0])
+      const rhsT = this.inferExprType(node.operand[1])
+      if (lhsT.kind != "primitiveType" || rhsT.kind != "primitiveType" || (lhsT.name != rhsT.name && lhsT.name != "integer" && rhsT.name != "integer"))
+        this.reportError(`Unmatched type for operator ${node.operator}`)
     }
   }
   

@@ -47,7 +47,7 @@ export function inferType(expr: ast.Expr): Type {
 }
 
 // Infer literal type
-function inferLiteralType(literal: ast.LiteralExpr): Type {
+export function inferLiteralType(literal: ast.LiteralExpr): Type {
   switch (literal.type) {
     case "integer":
       // Use suffix to determine integer type

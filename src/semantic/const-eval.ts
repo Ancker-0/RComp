@@ -1,9 +1,9 @@
 import { ASTNode, ASTType, getChildren, NodeByKind, visit, Visitor, walk } from "../parser/ast"
-import { SymbolTable } from "./info"
+import { integerType, SymbolTable, Type } from "./info"
+import { inferLiteralType } from "./type-infer"
 
-export type resolvedType = any
 export type Evaluated = {
-    type: resolvedType
+    type: Type
     value: any
 }
 
@@ -11,7 +11,7 @@ export class ConstEvaluator implements Visitor {
     constructor(private symbolTable?: SymbolTable) {}
     onLiteralExpr(node: NodeByKind<ASTType.LiteralExpr>, self: Visitor) {
         node.evaluated = {
-            type: node.type,
+            type: inferLiteralType(node),
             value: node.value,
         }
         
@@ -35,25 +35,25 @@ export class ConstEvaluator implements Visitor {
         switch (node.operator) {
             case "+":
                 node.evaluated = {
-                    type: "integer",
+                    type: integerType(),
                     value: left + right
                 };
                 break;
             case "-":
                 node.evaluated = {
-                    type: "integer",
+                    type: integerType(),
                     value: left - right
                 };
                 break;
             case "*":
                 node.evaluated = {
-                    type: "integer",
+                    type: integerType(),
                     value: left * right
                 };
                 break;
             case "/":
                 node.evaluated = {
-                    type: "integer",
+                    type: integerType(),
                     value: Math.floor(left / right)
                 };
                 break;
@@ -74,7 +74,7 @@ export class ConstEvaluator implements Visitor {
         switch (node.operator) {
             case "-":
                 node.evaluated = {
-                    type: "integer",
+                    type: integerType(),
                     value: -value
                 };
                 break;
