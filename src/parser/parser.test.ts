@@ -1,5 +1,6 @@
 import { tokenize } from "../lexer"
 import { TokenType } from "../lexer/token"
+import { ASTType } from "./ast"
 import { execute, get, Info, many, maybe, more, none, or, or1, ParserK, seq, some } from "./parsek/parsek"
 import { id, keyword, operator } from "./parsek/pkutil"
 import { associatedItems, constItem, expr, exprStatement, fn, ifE, impl, loop, structField, structFields, structItem, type, whileE } from "./parser"
@@ -179,7 +180,9 @@ test("if 6", succTest(fn, `
     fn test() -> i32 {
         if (true) { 1 } else { 0 }
     }
-    `))
+    `, 0, 3, rs => {
+        expect(rs[0]![0]!.body?.expr).toBeTruthy()
+    }))
 test("if 7", failTest(ifE, `if (true) 1`))  // 必须有 block
 test("if 8", failTest(ifE, `if true { }`))  // 必须有括号
 
@@ -193,6 +196,7 @@ test("expr ^", succTest(expr, `a ^ b`))
 test("expr |", succTest(expr, `a | b`))
 test("expr complex", succTest(expr, `a == b && b == c`))
 test("expr precedence", succTest(expr, `a + b * c == d && e || f`))
+test("expr 0", succTest(expr, `if (true) { 1 } else { 0 }`, 0, 2))
 
 
 test("borrow 1", succTest(expr, `&a`))

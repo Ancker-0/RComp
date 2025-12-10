@@ -24,6 +24,13 @@ export const pattern: ParserK<ast.Pattern> = or(referencePattern, identifierPatt
 
 export const exprWithBlock = lazy(() => or(loop, whileE, ifE))
 export const expr = or(lazy(()=>exprRaw), exprWithBlock)  // TODO: add expression with block
+/**
+ * TODO: now `if (a) { b } else { c }` has two ways to interpret as an expression:
+ * 1. an expression alone (e.g. as an sub-expression of 1+(...) )
+ * 2. block expression
+ * We should eliminate this error
+ * See test "expr 0" and "if 6"
+ */
 
 // export const literalExpr: ParserK<ast.LiteralExpr> = fmap(id(TokenType.IntegerLiteral),
 //     r => {
