@@ -73,6 +73,7 @@ async function readStdinAll(): Promise<string> {
         for (const error of result.errors) {
           console.log(`  - ${error.message}`);
         }
+        process.exit(1)
       } else {
         console.log("✓ No semantic errors found");
       }
@@ -80,6 +81,7 @@ async function readStdinAll(): Promise<string> {
       console.log("Parse failed!");
       console.log("First 10 tokens:");
       log(tokens.slice(0, 10))
+      process.exit(1)
     }
     // console.log(maybe(seq(keyword("let"), maybe(keyword("if")), keyword("else")))({ token: tokens, start: 0 }))
 })()
