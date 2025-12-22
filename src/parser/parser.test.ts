@@ -180,7 +180,7 @@ test("if 6", succTest(fn, `
     fn test() -> i32 {
         if (true) { 1 } else { 0 }
     }
-    `, 0, 3, rs => {
+    `, 0, 2, rs => {
         expect(rs[0]![0]!.body?.expr).toBeTruthy()
     }))
 test("if 7", failTest(ifE, `if (true) 1`))  // 必须有 block
@@ -196,7 +196,7 @@ test("expr ^", succTest(expr, `a ^ b`))
 test("expr |", succTest(expr, `a | b`))
 test("expr complex", succTest(expr, `a == b && b == c`))
 test("expr precedence", succTest(expr, `a + b * c == d && e || f`))
-test("expr 0", succTest(expr, `if (true) { 1 } else { 0 }`, 0, 2))
+test("expr 0", succTest(expr, `if (true) { 1 } else { 0 }`))
 
 
 test("borrow 1", succTest(expr, `&a`))

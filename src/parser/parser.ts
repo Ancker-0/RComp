@@ -23,7 +23,7 @@ export const referencePattern: ParserK<ast.ReferencePattern> = fmap(
 export const pattern: ParserK<ast.Pattern> = or(referencePattern, identifierPattern)
 
 export const exprWithBlock = lazy(() => or(loop, whileE, ifE))
-export const expr = or(lazy(()=>exprRaw), exprWithBlock)  // TODO: add expression with block
+export const expr = or(lazy(()=>exprRaw), lazy(()=>loop))  // TODO: add expression with block
 /**
  * TODO: now `if (a) { b } else { c }` has two ways to interpret as an expression:
  * 1. an expression alone (e.g. as an sub-expression of 1+(...) )
@@ -154,6 +154,23 @@ export const ifE: ParserK<ast.IfExpr> = fmap(
         cond: r[2],
         then: r[4],
         ...(r[5] && { else: r[5][1] })
+    })
+)
+
+export const ifElseE: ParserK<ast.IfExpr> = fmap(
+    seq(
+        keyword("if"),
+        id(TokenType.LeftParen),
+        expr,
+        id(TokenType.RightParen),
+        block,
+        seq(keyword("else"), or(lazy(() => ifE), block))
+    ),
+    r => ({
+        kind: ast.ASTType.IfExpr,
+        cond: r[2],
+        then: r[4],
+        else: r[5][1],
     })
 )
 
