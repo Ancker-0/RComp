@@ -36,6 +36,7 @@ export type Type =
   // | FunctionType
   | StructType
   | RefType
+  | NeverType
 
 export interface TypeBase {
   kind: string
@@ -43,6 +44,10 @@ export interface TypeBase {
     kind: "left value"
     mutable: boolean
   }
+}
+
+export interface NeverType extends TypeBase {
+  kind: "never"
 }
 
 export interface PrimitiveType extends TypeBase {

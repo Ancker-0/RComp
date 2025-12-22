@@ -362,51 +362,51 @@ export interface Visitor<R = void> {
 export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefined {
   switch (node.kind) {
     case ASTType.LiteralExpr:
-      return visitor.onLiteralExpr?.(node, visitor)
+      return (visitor.onLiteralExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.CallExpr:
-      return visitor.onCallExpr?.(node, visitor)
+      return (visitor.onCallExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.UnaryExpr:
-      return visitor.onUnaryExpr?.(node, visitor)
+      return (visitor.onUnaryExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.BinaryExpr:
-      return visitor.onBinaryExpr?.(node, visitor)
+      return (visitor.onBinaryExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.PathExpr:
-      return visitor.onPathExpr?.(node, visitor)
+      return (visitor.onPathExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.ArrayExpr:
-      return visitor.onArrayExpr?.(node, visitor)
+      return (visitor.onArrayExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.RepeatArrayExpr:
-      return visitor.onRepeatArrayExpr?.(node, visitor)
+      return (visitor.onRepeatArrayExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.IndexExpr:
-      return visitor.onIndexExpr?.(node, visitor)
+      return (visitor.onIndexExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.FnItem:
-      return visitor.onFn?.(node, visitor)
+      return (visitor.onFn || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.LetStatement:
-      return visitor.onLet?.(node, visitor)
+      return (visitor.onLet || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.BlockExpr:
-      return visitor.onBlock?.(node, visitor)
+      return (visitor.onBlock || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.LoopExpr:
-      return visitor.onLoop?.(node, visitor)
+      return (visitor.onLoop || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.WhileExpr:
-      return visitor.onWhile?.(node, visitor)
+      return (visitor.onWhile || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.IfExpr:
-      return visitor.onIf?.(node, visitor)
+      return (visitor.onIf || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.Crate:
-      return visitor.onCrate?.(node, visitor)
+      return (visitor.onCrate || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.ConstItem:
-      return visitor.onConst?.(node, visitor)
+      return (visitor.onConst || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.ExprStatement:
-      return visitor.onExprStatement?.(node, visitor)
+      return (visitor.onExprStatement || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.ReturnExpr:
-      return visitor.onReturnExpr?.(node, visitor)
+      return (visitor.onReturnExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.BreakExpr:
-      return visitor.onBreakExpr?.(node, visitor)
+      return (visitor.onBreakExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.CastExpr:
-      return visitor.onCastExpr?.(node, visitor)
+      return (visitor.onCastExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.StructExpr:
-      return visitor.onStructExpr?.(node, visitor)
+      return (visitor.onStructExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.FieldExpr:
-      return visitor.onFieldExpr?.(node, visitor)
+      return (visitor.onFieldExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.InherentImpl:
-      return visitor.onImpl?.(node, visitor)
+      return (visitor.onImpl || visitor.default)?.call?.(visitor, node, visitor)
     default:
       return visitor.default?.(node, visitor)
   }

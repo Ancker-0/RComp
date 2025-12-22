@@ -64,6 +64,7 @@ async function readStdinAll(): Promise<string> {
 
       // 进行语义分析
       const analyzer = new SemanticAnalyzer();
+      // visit(crateNode, analyzer.ctrl)
       const result = analyzer.analyze(crateNode);
 
       // 输出语义分析结果

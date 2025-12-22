@@ -4,6 +4,7 @@ import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
 import { evaluateExpr, Evaluated } from "./const-eval";
 import util from 'util';
+import { Control } from "./control";
 
 // 语义分析结果
 export interface SemanticAnalysisResult {
@@ -16,9 +17,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   private errors: SemanticError[] = [];
   private loopDepth: number = 0; // 跟踪循环嵌套深度
   private inLoopContext: boolean = false; // 是否在 loop 中（支持 break value）
+  ctrl: Control
 
   constructor() {
     this.symbolTable = new SymbolTableImpl();
+    this.ctrl = new Control(this.symbolTable, this.reportError)
   }
 
   // 分析整个 crate
