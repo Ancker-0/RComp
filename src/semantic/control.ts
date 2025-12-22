@@ -6,10 +6,20 @@ export type CtrlBase = {
     parent?: ast.ASTNode
     who: ast.ASTNode
 }
-export type ControlInfo = CtrlFn | (CtrlBase & { kind: undefined })
+export type ControlInfo =
+    CtrlFn
+    | CtrlFnBlock
+    | CtrlBlock
+    | (CtrlBase & { kind: undefined })
 export interface CtrlFn extends CtrlBase {
     kind: "fn"
     returned: boolean
+}
+export interface CtrlFnBlock extends CtrlBase {
+    kind: "fnBlock"
+}
+export interface CtrlBlock extends CtrlBase {
+    kind: "block"
 }
 
 // The original Omit<T, K> does not produce union type when T is union type
@@ -60,6 +70,32 @@ export class Control {
         )
             this.sema.reportError(`Function ${node.name} doesn't return`, node)
         this.done()
+    }
+    onBlockPre(node: ast.BlockExpr) {
+        const stack = this.inspect(this._parentStack[this._parentStack.length - 1])
+        const fnIdx = stack.findIndex(info => info.kind == "fn")
+        if (fnIdx == -1 || stack.slice(0, fnIdx).some(info => info.kind == "fnBlock"))
+            this.prepare(node, () => ({ kind: "block" }))
+        else
+            this.prepare(node, () => ({ kind: "fnBlock" }))
+    }
+    onBlockPost(node: ast.BlockExpr) {
+        try {
+            if (this.memo.get(node)?.kind == "fnBlock") {
+                const stack = this.inspect(node)
+                const fnIdx = stack.findIndex(info => info.kind == "fn")
+                const fnInfo = stack[fnIdx] as ControlInfo & { kind: "fn" }
+                const fn = fnInfo.who as ast.FuncItem
+                if (fn.body !== node)
+                    throw new Error(`Unexpected error`)
+                if (fn.body
+                    && fn.body.expr
+                    && !this.sema.typeCastable(this.sema.analyzeType(fn.returnType), this.sema.inferExprType(fn.body.expr)))
+                    this.sema.reportError("Unmatched return expr type", fn)
+            }
+        } finally {
+            this.done()
+        }
     }
     onReturnExprPre(node: ast.NodeByKind<ast.ASTType.ReturnExpr>) {
         this.prepare(node, () => ({ kind: undefined }))

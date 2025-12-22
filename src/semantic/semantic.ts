@@ -318,6 +318,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   onBlock(node: ast.NodeByKind<ast.ASTType.BlockExpr>, self: ast.Visitor<void>): void {
     // 进入块作用域
     this.symbolTable.enterScope();
+    this.ctrl.onBlockPre(node)
 
     try {
       // Pass 0: Register constant variables
@@ -356,6 +357,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         this.visit(node.expr, self);
       }
     } finally {
+      this.ctrl.onBlockPost(node)
       // 确保总是退出作用域
       this.symbolTable.exitScope();
     }
@@ -816,6 +818,10 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           return unitType()
         }
         return { ...lhsType.fields.get(expr.field)!, owner: lhsType.owner }
+
+      case ast.ASTType.StructExpr:
+        // TODO: handle paths
+        return this.symbolTable.lookupType(expr.path.segs[0]!) || unitType()
 
       default:
         // 其他情况使用原有的 inferType

@@ -419,6 +419,8 @@ export function areTypesEqual(type1: Type, type2: Type, symbolTable?: SymbolTabl
       return size1 !== undefined && size2 !== undefined &&
              typeof size1.value === 'number' && typeof size2.value === 'number' &&
              size1.value === size2.value;
+    case "structType":
+      return type1.UUID == (type2 as StructType).UUID
 
     default:
       // For other types, use simple equality check for now
