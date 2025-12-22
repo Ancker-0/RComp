@@ -1,6 +1,6 @@
 import * as ast from "../parser/ast";
 import { log } from "../util";
-import { SymbolTableImpl } from "./info";
+import { isUnit, SymbolTableImpl, Type } from "./info";
 
 export type CtrlBase = {
     parent?: ast.ASTNode
@@ -9,17 +9,22 @@ export type CtrlBase = {
 export type ControlInfo = CtrlFn | (CtrlBase & { kind: undefined })
 export interface CtrlFn extends CtrlBase {
     kind: "fn"
+    returned: boolean
 }
+
+// The original Omit<T, K> does not produce union type when T is union type
+type OmitDist<T, K extends keyof any> = T extends any ? Pick<T, Exclude<keyof T, K>> : never;
 
 export class Control implements ast.Visitor<void> {
     constructor(
         private symbolTable: SymbolTableImpl,
-        private reportError: (message: string, node?: ast.ASTNode) => void) { }
+        private reportError: (message: string, node?: ast.ASTNode) => void,
+        private analyzeType: (type: ast.Type) => Type) { }
     private memo = new Map<ast.ASTNode, ControlInfo>
-    private prepare = (node: ast.ASTNode, call: () => Omit<ControlInfo, "who"> | undefined) => {
+    private prepare(node: ast.ASTNode, call: () => OmitDist<OmitDist<ControlInfo, "who">, "parent"> | undefined) {
         if (!this.memo.has(node)) {
             const r = call()
-            r && this.memo.set(node, { ...r, who: node })
+            r && this.memo.set(node, { ...r, who: node, parent: this._parentNow })
         }
         this._parentNow = node
     }
@@ -40,14 +45,21 @@ export class Control implements ast.Visitor<void> {
     //     }
     // }
     onFn(node: ast.FuncItem, self: ast.Visitor<void>): void {
-        this.prepare(node, () => ({ kind: "fn", parent: this._parentNow }))
+        this.prepare(node, () => ({ kind: "fn", returned: false }))
         ast.walk(node, self)
+        if (!(this.memo.get(node) as CtrlFn).returned
+            && (!node.body || !node.body.expr)
+            && !isUnit(this.analyzeType(node.returnType))
+        ) {
+            this.reportError(`Function ${node.name} doesn't return`, node)
+        }
     }
     onReturnExpr(node: ast.NodeByKind<ast.ASTType.ReturnExpr>, self: ast.Visitor<void>): void {
-        this.prepare(node, () => ({ kind: undefined, parent: this._parentNow }))
+        this.prepare(node, () => ({ kind: undefined }))
         ast.walk(node, self)
         const r = this.inspect(node).find(val => {
             if (val?.kind == "fn") {
+                val.returned = true
                 return true
             }
         })
