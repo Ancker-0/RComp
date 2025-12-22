@@ -21,15 +21,18 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
   constructor() {
     this.symbolTable = new SymbolTableImpl();
-    this.ctrl = new Control(
-      this.symbolTable,
-      this.reportError.bind(this),
-      this.analyzeType.bind(this))
+    this.ctrl = new Control({
+      symbolTable: this.symbolTable,
+      reportError: this.reportError.bind(this),
+      analyzeType: this.analyzeType.bind(this),
+      inferExprType: this.inferExprType.bind(this),
+      typeCastable: this.typeCastable.bind(this),
+    })
   }
 
   // 分析整个 crate
   analyze(crate: ast.Crate): SemanticAnalysisResult {
-    this.visit(crate, this);
+    this.visit(crate, this)
     this.visit(crate, this.ctrl)
     return {
       errors: this.errors
