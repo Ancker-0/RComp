@@ -33,7 +33,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   // 分析整个 crate
   analyze(crate: ast.Crate): SemanticAnalysisResult {
     this.visit(crate, this)
-    this.visit(crate, this.ctrl)
+    // this.visit(crate, this.ctrl)  // can't work seperately
     return {
       errors: this.errors
     };
@@ -285,6 +285,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         this.analyzeParameter(param);
       }
 
+      this.ctrl.onFnPre(node)
       // 处理函数体
       if (node.body) {
         this.visit(node.body, self);
@@ -304,8 +305,14 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       }
     } finally {
       // 确保总是退出作用域
+      this.ctrl.onFnPost(node)
       this.symbolTable.exitScope();
     }
+  }
+
+  onReturnExpr(node: ast.NodeByKind<ast.ASTType.ReturnExpr>, self: ast.Visitor<void>): void {
+    this.ctrl.onReturnExprPre(node)
+    this.ctrl.onReturnExprPost(node)
   }
 
   onBlock(node: ast.NodeByKind<ast.ASTType.BlockExpr>, self: ast.Visitor<void>): void {

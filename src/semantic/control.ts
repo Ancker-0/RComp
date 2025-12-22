@@ -23,17 +23,18 @@ interface Sema {
     typeCastable(dest: Type, src: Type): boolean
 }
 
-export class Control implements ast.Visitor<void> {
+export class Control {
     constructor(private sema: Sema) { }
     private memo = new Map<ast.ASTNode, ControlInfo>
+    private _parentStack: ast.ASTNode[] = []
     private prepare(node: ast.ASTNode, call: () => OmitDist<OmitDist<ControlInfo, "who">, "parent"> | undefined) {
         if (!this.memo.has(node)) {
             const r = call()
-            r && this.memo.set(node, { ...r, who: node, parent: this._parentNow })
+            r && this.memo.set(node, { ...r, who: node, parent: this._parentStack.length ? this._parentStack[this._parentStack.length - 1]! : undefined })
         }
-        this._parentNow = node
+        this._parentStack.push(node)
     }
-    private _parentNow?: ast.ASTNode
+    private done() { this._parentStack.pop() }
     private inspect(node: ast.ASTNode | undefined): ControlInfo[] {
         const ret: ControlInfo[] = []
         while (node) {
@@ -49,19 +50,21 @@ export class Control implements ast.Visitor<void> {
     //         return fn(node, self);
     //     }
     // }
-    onFn(node: ast.FuncItem, self: ast.Visitor<void>): void {
+    onFnPre(node: ast.FuncItem) {
         this.prepare(node, () => ({ kind: "fn", returned: false }))
-        ast.walk(node, self)
+    }
+    onFnPost(node: ast.FuncItem) {
         if (!(this.memo.get(node) as CtrlFn).returned
             && (!node.body || !node.body.expr)
             && !isUnit(this.sema.analyzeType(node.returnType))
-        ) {
+        )
             this.sema.reportError(`Function ${node.name} doesn't return`, node)
-        }
+        this.done()
     }
-    onReturnExpr(node: ast.NodeByKind<ast.ASTType.ReturnExpr>, self: ast.Visitor<void>): void {
+    onReturnExprPre(node: ast.NodeByKind<ast.ASTType.ReturnExpr>) {
         this.prepare(node, () => ({ kind: undefined }))
-        ast.walk(node, self)
+    }
+    onReturnExprPost(node: ast.NodeByKind<ast.ASTType.ReturnExpr>) {
         const r = this.inspect(node).find(val => {
             if (val?.kind == "fn") {
                 val.returned = true
@@ -73,13 +76,8 @@ export class Control implements ast.Visitor<void> {
                 return true
             }
         })
+        this.done()
         if (!r)
             return this.sema.reportError(`return statement outside function`, node)
-    }
-    onCrate(node: ast.NodeByKind<ast.ASTType.Crate>, self: ast.Visitor<void>): void {
-        ast.walk(node, self)
-    }
-    default(node: ast.ASTNode, self: ast.Visitor<void>): void {
-        ast.walk(node, self)
     }
 }
