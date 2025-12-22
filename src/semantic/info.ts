@@ -142,7 +142,6 @@ export type EndType = { unfix: EndTypeF<EndType> }
 export const fix = (x: EndTypeF<EndType>): EndType => ({ unfix: x })
 export const unfix = (x: EndType): EndTypeF<EndType> => x.unfix
 export type EndTAlgebra<A> = (e: EndTypeF<A>) => A
-export type EndTRes = { succ: false } | { succ: true, type: Type }
 export const cata = <A>(alg: EndTAlgebra<A>, e: EndType): A => {
   const under = unfix(e)
   if ('type' in under)
@@ -151,6 +150,21 @@ export const cata = <A>(alg: EndTAlgebra<A>, e: EndType): A => {
     leading: under.leading,
     sub: under.sub.map(e => cata(alg, e))
   })
+}
+
+export type StackInfo = {
+  kind: "if"
+}
+
+export class Where<T> {
+  stack: T[]
+  constructor() {
+    this.stack = []
+  }
+  push(val: T): void { this.stack.push(val) }
+  pop(): void { this.stack.pop() }
+  inspect(): T[] { return this.stack }
+  map<R>(f: (item: T) => R): R[] { return this.stack.map(f) }
 }
 
 // 作用域接口

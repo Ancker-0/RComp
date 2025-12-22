@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTypeF, Where, StackInfo } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -11,12 +11,15 @@ export interface SemanticAnalysisResult {
   errors: SemanticError[];
 }
 
+export type EndTRes = { succ: false } | { succ: true, type: Type }
+
 // 语义分析器类
 export class SemanticAnalyzer implements ast.Visitor<void> {
   private symbolTable: SymbolTableImpl;
   private errors: SemanticError[] = [];
   private loopDepth: number = 0; // 跟踪循环嵌套深度
   private inLoopContext: boolean = false; // 是否在 loop 中（支持 break value）
+  private where = new Where<StackInfo>()
   ctrl: Control
 
   constructor() {
@@ -27,10 +30,23 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   // 分析整个 crate
   analyze(crate: ast.Crate): SemanticAnalysisResult {
     this.visit(crate, this);
+    this.visit(crate, this.ctrl)
     return {
       errors: this.errors
     };
   }
+
+  private _result: EndTRes | undefined = undefined
+  receive<T extends ast.ASTNode>(f: (...ast: T[]) => void): ((ast: T) => EndTRes | undefined) {
+    return (...ast: T[]) => {
+      (() => this._result = undefined)()
+      f(...ast)
+      const res = this._result
+      this._result = undefined
+      return res
+    }
+  }
+  setReceive(r: EndTRes) { this._result = r }
 
   // 报告错误
   private reportError(message: string, node?: ast.ASTNode): void {
@@ -335,6 +351,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       // Process all statements in order
       for (const stmt of node.statements)
         if (stmt.kind !== ast.ASTType.ConstItem)
+          // this.receive(this.visit)(stmt, self);
           this.visit(stmt, self);
 
       // 处理块中的表达式
