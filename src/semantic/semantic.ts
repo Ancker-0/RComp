@@ -4,7 +4,7 @@ import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
 import { evaluateExpr, Evaluated } from "./const-eval";
 import util from 'util';
-import { Control, CtrlBlock, CtrlFnBlock, CtrlLoop } from "./control";
+import { Control, CtrlBlock, CtrlFn, CtrlFnBlock, CtrlLoop } from "./control";
 
 // 语义分析结果
 export interface SemanticAnalysisResult {
@@ -116,36 +116,41 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
   // 访问者模式实现
   onCrate(node: ast.NodeByKind<ast.ASTType.Crate>, self: ast.Visitor<void>): void {
-    // Pass 0: Register constant variables
-    for (const item of node.items)
-      if (item.kind === ast.ASTType.ConstItem)
-        this.visit(item, self)
+    this.ctrl.onCratePre(node)
+    try {
+      // Pass 0: Register constant variables
+      for (const item of node.items)
+        if (item.kind === ast.ASTType.ConstItem)
+          this.visit(item, self)
 
-    // Pass 1: Register all struct types
-    for (const item of node.items) {
-      if (item.kind === ast.ASTType.StructItem) {
-        this.registerStruct(item);
+      // Pass 1: Register all struct types
+      for (const item of node.items) {
+        if (item.kind === ast.ASTType.StructItem) {
+          this.registerStruct(item);
+        }
       }
-    }
 
-    // Pass 2: Register all impl blocks (methods)
-    for (const item of node.items) {
-      if (item.kind === ast.ASTType.InherentImpl) {
-        this.registerImpl(item);
+      // Pass 2: Register all impl blocks (methods)
+      for (const item of node.items) {
+        if (item.kind === ast.ASTType.InherentImpl) {
+          this.registerImpl(item);
+        }
       }
-    }
 
-    // Pass 3: Register all function signatures
-    for (const item of node.items) {
-      if (item.kind === ast.ASTType.FnItem) {
-        this.registerFunction(item);
+      // Pass 3: Register all function signatures
+      for (const item of node.items) {
+        if (item.kind === ast.ASTType.FnItem) {
+          this.registerFunction(item);
+        }
       }
-    }
 
-    // Pass 4: Analyze all item contents
-    for (const item of node.items)
-      if (item.kind !== ast.ASTType.ConstItem)
-        this.visit(item, self);
+      // Pass 4: Analyze all item contents
+      for (const item of node.items)
+        if (item.kind !== ast.ASTType.ConstItem)
+          this.visit(item, self);
+    } finally {
+      this.ctrl.onCratePost(node)
+    }
   }
 
   // TODO: fn using "self" as parameters
@@ -288,6 +293,16 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       }
 
       this.ctrl.onFnPre(node)
+      const info = this.ctrl.ask(node) as CtrlFn | undefined
+      if (node.name == "main" && info && info.parent && this.ctrl.ask(info.parent)?.kind == "crate") {
+        const exitFunction: FunctionSymbol = {
+          UUID: genUUID(),
+          name: "exit",
+          params: [i32Type()],
+          returnType: unitType()
+        };
+        this.symbolTable.insertFunction("exit", exitFunction)
+      }
       // 处理函数体
       if (node.body) {
         this.visit(node.body, self);

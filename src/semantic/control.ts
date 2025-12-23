@@ -11,7 +11,11 @@ export type ControlInfo =
     | CtrlFnBlock
     | CtrlBlock
     | CtrlLoop
+    | CtrlCrate
     | (CtrlBase & { kind: undefined })
+export interface CtrlCrate extends CtrlBase {
+    kind: "crate"
+}
 export interface CtrlFn extends CtrlBase {
     kind: "fn"
     returned: boolean
@@ -73,6 +77,8 @@ export class Control {
     //         return fn(node, self);
     //     }
     // }
+    onCratePre(node: ast.Crate) { this.prepare(node, () => ({ kind: "crate" })) }
+    onCratePost(node: ast.Crate) { this.done() }
     onFnPre(node: ast.FuncItem) {
         this.prepare(node, () => ({ kind: "fn", returned: false }))
     }

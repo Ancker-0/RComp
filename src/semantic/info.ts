@@ -241,18 +241,33 @@ export class SymbolTableImpl implements SymbolTable {
 
   // 初始化内置函数
   private initializeBuiltinFunctions(): void {
-    // Register exit function: fn exit(code: i32) -> ()
-    const exitFunction: FunctionSymbol = {
-      UUID: genUUID(),
-      name: "exit",
-      params: [i32Type()],
-      returnType: unitType()
-    };
-    this.globalScope.functions.set("exit", exitFunction);
     this.globalScope.functions.set("printInt", {
       UUID: genUUID(),
       name: "printInt",
       params: [i32Type()],
+      returnType: unitType(),
+    })
+    this.globalScope.functions.set("printlnInt", {
+      UUID: genUUID(),
+      name: "printInt",
+      params: [i32Type()],
+      returnType: unitType(),
+    })
+    const refStr = (): Type => ({
+      kind: "refType",
+      mutable: false,
+      under: { kind: "primitiveType", name: "str" },
+    });
+    this.globalScope.functions.set("print", {
+      UUID: genUUID(),
+      name: "print",
+      params: [refStr()],
+      returnType: unitType(),
+    })
+    this.globalScope.functions.set("println", {
+      UUID: genUUID(),
+      name: "println",
+      params: [refStr()],
       returnType: unitType(),
     })
     this.globalScope.functions.set("getInt", {
