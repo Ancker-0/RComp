@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -364,7 +364,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   }
 
   private typeCastable(dest: Type, src: Type): boolean {
-    if (areTypesEqual(dest, src, this.symbolTable))
+    if (areTypesEqual(dest, src, this.symbolTable) || isNever(src))
       return true
     switch (src.kind) {
       case "refType":
@@ -822,6 +822,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       case ast.ASTType.StructExpr:
         // TODO: handle paths
         return this.symbolTable.lookupType(expr.path.segs[0]!) || unitType()
+      
+      case ast.ASTType.ReturnExpr:
+        return neverType()
 
       default:
         // 其他情况使用原有的 inferType

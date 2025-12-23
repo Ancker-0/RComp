@@ -20,6 +20,7 @@ export interface CtrlFnBlock extends CtrlBase {
 }
 export interface CtrlBlock extends CtrlBase {
     kind: "block"
+    never: boolean
 }
 
 // The original Omit<T, K> does not produce union type when T is union type
@@ -75,7 +76,7 @@ export class Control {
         const stack = this.inspect(this._parentStack[this._parentStack.length - 1])
         const fnIdx = stack.findIndex(info => info.kind == "fn")
         if (fnIdx == -1 || stack.slice(0, fnIdx).some(info => info.kind == "fnBlock"))
-            this.prepare(node, () => ({ kind: "block" }))
+            this.prepare(node, () => ({ kind: "block", never: false }))
         else
             this.prepare(node, () => ({ kind: "fnBlock" }))
     }
