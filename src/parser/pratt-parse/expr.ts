@@ -189,6 +189,8 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                 start = r1[1].start
                 if (token[start]?.type == TokenType.Comma)
                     ++start
+                else if (token[start]?.type != TokenType.RightBracket)
+                    throw new Error("Expected right bracket in literal array expression")
             }
             if (token[start]?.type != TokenType.RightBracket)
                 throw new Error("Unmatched bracket")
