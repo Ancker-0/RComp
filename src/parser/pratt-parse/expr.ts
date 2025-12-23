@@ -3,7 +3,7 @@ import { Operator, OperatorToken, Token, TokenType } from "../../lexer/token"
 import { Info as InfoK, next, none, ParserK, Result, some, execute } from "../parsek/parsek"
 import util from 'util'
 import { parse } from "path"
-import { exprWithBlock, ifE, ifElseE, type as typeParser } from "../parser"
+import { block, exprWithBlock, ifE, ifElseE, type as typeParser } from "../parser"
 
 type BindPower = number
 // type Info = InfoK & { power: BindPower }
@@ -196,6 +196,12 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                 throw new Error("Unmatched bracket")
             ++start
         } else throw new Error("Unexpected token")
+    } else if (f.type == TokenType.LeftBrace) {
+        const r = execute(block, src)  // TODO: does it cause circular dependency problem?
+        if (!r)
+            throw new Error("Can't parse block expression")
+        ret = r[0]
+        start = r[1].start
     } else if (f.type == TokenType.Operator) {
         const [_, rbp] = prefixPower(f)
         if (f.raw === "&" || f.raw === "&&") {  // borrow expr
