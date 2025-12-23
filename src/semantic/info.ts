@@ -84,6 +84,10 @@ export interface StructType extends TypeBase {
   methods?: Map<string, FunctionSymbol>;  // Methods associated with this struct
 }
 
+export function isStruct(t: Type) {
+  return t.kind === "structType"
+}
+
 export interface RefType extends TypeBase {
   kind: "refType"
   mutable: boolean

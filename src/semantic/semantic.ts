@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -810,7 +810,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
       case ast.ASTType.FieldExpr:
         const lhs = expr.object
-        const lhsType = this.inferExprType(lhs)
+        const lhsType = this.autoDeref(this.inferExprType(lhs), isStruct)
         if (lhsType.kind != "structType") {
           this.reportError(`Expect ${lhsType} to be a struct`)
           return unitType()
@@ -947,7 +947,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.visit(node.object, self);
 
     // Infer the type of field access
-    const objectType = this.inferExprType(node.object);
+    const objectType = this.autoDeref(this.inferExprType(node.object), isStruct);
     if (objectType.kind === "structType") {
       const structType = objectType as StructType;
 
