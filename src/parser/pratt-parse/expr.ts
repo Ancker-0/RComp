@@ -246,6 +246,8 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
                         kind: ast.ASTType.BreakExpr,
                     }, { ...src, start }]
                 }
+            case "continue":
+                return [{ kind: ast.ASTType.ContinueExpr }, { ...src, start }]
             case "return":
                 try {
                     const rest = parseExpr({ ...src, start }, -Infinity)

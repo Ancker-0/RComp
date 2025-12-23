@@ -38,6 +38,7 @@ export enum ASTType {
     WhileExpr,
     IfExpr,
     BreakExpr,
+    ContinueExpr,
     ReturnExpr,
     AssignExpr,
     CastExpr,
@@ -110,7 +111,7 @@ export interface RefType extends ASTBase {
 
 export type Statement = EmptyStatement | Item | LetStatement | ExprStatement
 
-export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | ReturnExpr | CastExpr | StructExpr | FieldExpr
+export type Expr = LiteralExpr | CallExpr | UnaryExpr | BinaryExpr | PathExpr | ArrayExpr | RepeatArrayExpr | IndexExpr | LoopExpr | WhileExpr | IfExpr | BreakExpr | ContinueExpr | ReturnExpr | CastExpr | StructExpr | FieldExpr
                    | BlockExpr | BorrowExpr
 export interface ExprBase extends ASTBase {
     evaluated?: Evaluated
@@ -173,6 +174,9 @@ export interface IfExpr extends ExprBase {
 export interface BreakExpr extends ExprBase {
     kind: ASTType.BreakExpr
     expr?: Expr
+}
+export interface ContinueExpr extends ExprBase {
+    kind: ASTType.ContinueExpr
 }
 
 export interface ReturnExpr extends ExprBase {
@@ -303,6 +307,7 @@ export type ASTNode =
     | WhileExpr
     | IfExpr
     | BreakExpr
+    | ContinueExpr
     | ReturnExpr
     | CastExpr
     | StructExpr
