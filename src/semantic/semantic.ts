@@ -314,6 +314,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
   onReturnExpr(node: ast.NodeByKind<ast.ASTType.ReturnExpr>, self: ast.Visitor<void>): void {
     this.ctrl.onReturnExprPre(node)
+    ast.walk(node, self)
     this.ctrl.onReturnExprPost(node)
   }
 
@@ -661,7 +662,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // Check if this is a method call (value is FieldExpr)
     if (expr.value.kind === ast.ASTType.FieldExpr) {
       const fieldExpr = expr.value as ast.FieldExpr;
-      const objectType = this.inferExprType(fieldExpr.object);
+      const objectType = this.autoDeref(this.inferExprType(fieldExpr.object),
+        tp => ["structType", "arrayType"].includes(tp.kind));
       const methodName = fieldExpr.field;
 
       // Look up the method in the struct's methods
@@ -800,6 +802,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       case ast.ASTType.BinaryExpr:
         return this.inferBinaryType(expr)
 
+      case ast.ASTType.UnaryExpr:
+        return this.inferUnaryType(expr)
+
       case ast.ASTType.BorrowExpr:
         return {
           kind: "refType",
@@ -838,6 +843,16 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       default:
         // 其他情况使用原有的 inferType
         return inferType(expr);
+    }
+  }
+  inferUnaryType(expr: ast.UnaryExpr): Type {
+    switch (expr.operator) {
+      case "-":
+        return this.inferExprType(expr.operand);
+      case "!":
+        return boolType();
+      default:
+        return unitType();
     }
   }
 
