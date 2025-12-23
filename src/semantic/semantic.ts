@@ -4,7 +4,7 @@ import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
 import { evaluateExpr, Evaluated } from "./const-eval";
 import util from 'util';
-import { Control } from "./control";
+import { Control, CtrlLoop } from "./control";
 
 // 语义分析结果
 export interface SemanticAnalysisResult {
@@ -27,6 +27,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       analyzeType: this.analyzeType.bind(this),
       inferExprType: this.inferExprType.bind(this),
       typeCastable: this.typeCastable.bind(this),
+      unifyType: this.unifyType.bind(this),
     })
   }
 
@@ -45,6 +46,52 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.errors.push(error);
   }
 
+  unifyType = (u: Type, v: Type): Type | null => {
+    if (u.kind != v.kind)
+      return null
+    const owner = u.owner ? u.owner : v.owner  // TODO: be consistent
+    switch (u.kind) {
+      case "arrayType":
+        if (v.kind != u.kind) return null
+        const szu = this.evaluateExpr(u.expr)
+        const szv = this.evaluateExpr(v.expr)
+        const type = this.unifyType(u.type, v.type)
+        if (szu != szv || !type)
+          return null
+        return {
+          kind: "arrayType",
+          expr: u.expr,
+          type,
+          owner
+        }
+      case "primitiveType":
+        if (v.kind != u.kind) return null
+        if (u.name == v.name)
+          return u
+        return null  // TODO: unify integer type
+      /*case "functionType":
+        if (v.kind != u.kind) return null
+        const returnT = unify(u.returnType, v.returnType)
+        if (!returnT || u.params.length != v.params.length)
+          return null
+        const paramT = u.params.map((t, i) => unify(t, v.params[i]!))
+        if (paramT.some(t => t == null))
+          return null
+        return {
+          kind: "functionType",
+          params: paramT as Type[],
+          returnType: returnT,
+          owner,
+        }*/
+      case "structType":
+        if (v.kind != u.kind) return null
+        return u.UUID == v.UUID ? u : null
+      case "refType":
+        return null  // TODO
+    }
+    return null
+  }
+
   alg: EndTAlgebra<EndTRes> = (e: EndTypeF<EndTRes>) => {
     if ('type' in e) {
       return { succ: true, type: e.type }
@@ -58,51 +105,6 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         && val.type.kind == (e.sub[0]! as EndTRes & { succ: true }).type.kind))
         return { succ: false }
       const sub = e.sub.map(v => (v as EndTRes & { succ: true }))
-      const unify = (u: Type, v: Type): Type | null => {
-        if (u.kind != v.kind)
-          return null
-        const owner = u.owner ? u.owner : v.owner  // TODO: be consistent
-        switch (u.kind) {
-          case "arrayType":
-            if (v.kind != u.kind) return null
-            const szu = this.evaluateExpr(u.expr)
-            const szv = this.evaluateExpr(v.expr)
-            const type = unify(u.type, v.type)
-            if (szu != szv || !type)
-              return null
-            return {
-              kind: "arrayType",
-              expr: u.expr,
-              type,
-              owner
-            }
-          case "primitiveType":
-            if (v.kind != u.kind) return null
-            if (u.name == v.name)
-              return u
-            return null  // TODO: unify integer type
-          /*case "functionType":
-            if (v.kind != u.kind) return null
-            const returnT = unify(u.returnType, v.returnType)
-            if (!returnT || u.params.length != v.params.length)
-              return null
-            const paramT = u.params.map((t, i) => unify(t, v.params[i]!))
-            if (paramT.some(t => t == null))
-              return null
-            return {
-              kind: "functionType",
-              params: paramT as Type[],
-              returnType: returnT,
-              owner,
-            }*/
-          case "structType":
-            if (v.kind != u.kind) return null
-            return u.UUID == v.UUID ? u : null
-          case "refType":
-            return null  // TODO
-        }
-        return null
-      }
       return { succ: false }
     }
   }
@@ -826,6 +828,14 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       case ast.ASTType.ReturnExpr:
         return neverType()
 
+      case ast.ASTType.LoopExpr:
+        const ctrl = this.ctrl.ask(expr) as (CtrlLoop | undefined)
+        if (!ctrl) {
+          throw new Error("Unexpected error: not visited by control analyzer")
+          return unitType()
+        }
+        return ctrl.type
+
       default:
         // 其他情况使用原有的 inferType
         return inferType(expr);
@@ -1207,9 +1217,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.inLoopContext = true; // loop supports break with value
 
     try {
+      this.ctrl.onLoopPre(node)
       // Analyze loop body
       this.visit(node.body, self);
     } finally {
+      this.ctrl.onLoopPost(node)
       // Always restore state
       this.loopDepth--;
       this.inLoopContext = prevInLoop;
@@ -1232,6 +1244,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       }
       // Visit the break expression
       this.visit(node.expr, self);
+      this.ctrl.onBreakPost(node)
     }
   }
 }
