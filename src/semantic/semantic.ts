@@ -851,6 +851,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         return this.inferExprType(expr.operand);
       case "!":
         return boolType();
+      case "*":
+        const t = this.inferExprType(expr.operand)
+        if (t.kind != "refType")
+          return unitType()
+        return { ...t.under, owner: { kind: "left value", mutable: t.mutable } }
       default:
         return unitType();
     }
@@ -980,13 +985,22 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     }
   }
 
-  onUnaryExpr = undefined;
+  onUnaryExpr(node: ast.NodeByKind<ast.ASTType.UnaryExpr>, self: ast.Visitor<void>): void {
+    switch (node.operator) {
+      case "*":
+        const t = this.inferExprType(node.operand)
+        if (t.kind != "refType")
+          this.reportError(`Operator* expects reference type`)
+        break
+      default:
+    }
+  }
   onBinaryExpr(node: ast.NodeByKind<ast.ASTType.BinaryExpr>, self: ast.Visitor<void>): void {
     // 先处理子节点，确保类型信息已经推断
     ast.walk(node, self);
 
     // 处理赋值表达式
-    if (node.operator === "=") {
+    if (["=", "+=", "-=", "*=", "/=", "<<=", ">>=", "&=", "%=", "^=", "|="].includes(node.operator)) {
       // TODO: Combine the two checks
       // 检查左值是否可变
       this.checkMutability(node.operand[0]);
