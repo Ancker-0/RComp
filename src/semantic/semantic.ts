@@ -4,7 +4,7 @@ import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
 import { evaluateExpr, Evaluated } from "./const-eval";
 import util from 'util';
-import { Control, CtrlLoop } from "./control";
+import { Control, CtrlBlock, CtrlFnBlock, CtrlLoop } from "./control";
 
 // 语义分析结果
 export interface SemanticAnalysisResult {
@@ -784,8 +784,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       case ast.ASTType.BlockExpr:
         if (!expr.expr)
           return unitType()
-        // TODO: check never type
-        return this.inferExprType(expr.expr)
+        return (this.ctrl.ask(expr) as CtrlBlock | CtrlFnBlock)?.type || unitType()
 
       case ast.ASTType.IfExpr:
         const t = this.inferExprType(expr.then)

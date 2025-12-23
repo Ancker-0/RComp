@@ -18,10 +18,12 @@ export interface CtrlFn extends CtrlBase {
 }
 export interface CtrlFnBlock extends CtrlBase {
     kind: "fnBlock"
+    type?: Type
 }
 export interface CtrlBlock extends CtrlBase {
     kind: "block"
     never: boolean
+    type?: Type
 }
 export interface CtrlLoop extends CtrlBase {
     kind: "loop"
@@ -102,6 +104,11 @@ export class Control {
                     && !this.sema.typeCastable(this.sema.analyzeType(fn.returnType), this.sema.inferExprType(fn.body.expr)))
                     this.sema.reportError("Unmatched return expr type", fn)
             }
+            const info = this.memo.get(node) as CtrlBlock | CtrlFnBlock
+            if (node.expr)
+                info.type = this.sema.inferExprType(node.expr)
+            else
+                info.type = unitType()
         } finally {
             this.done()
         }
