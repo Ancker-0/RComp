@@ -1,4 +1,4 @@
-import { Token, TokenType, Location, Keyword, KEYWORDS_STRONG, NormalToken, KeywordToken, IntegerLiteralToken, OperatorToken, OPERATORS, TokenSpecific } from "./token"
+import { Token, TokenType, Location, Keyword, KEYWORDS_STRONG, NormalToken, KeywordToken, IntegerLiteralToken, OperatorToken, OPERATORS, TokenSpecific, CharLiteral } from "./token"
 import { TokenType as TT } from "./token"
 
 // TODO: parse comments, string/float literal, shebang removal, etc.
@@ -133,12 +133,19 @@ export class Lexer {
         return { ...result, location }
     }
 
-    private scanCharLiteral(): NormalToken | null {
+    private scanCharLiteral(): CharLiteral | null {
         if (this.src[this.pos] === "'" && this.src[this.pos + 2] === "'") {
             return {
                 type: TokenType.CharLiteral,
-                raw: this.src.slice(this.pos, this.pos + 3)
+                raw: this.src.slice(this.pos, this.pos + 3),
+                value: this.src[this.pos+1] || "",
             };
+        } else if (this.src[this.pos] == "'" && this.src[this.pos + 1] == "\\" && this.src[this.pos + 3] == "'") {
+            return {
+                type: TokenType.CharLiteral,
+                raw: this.src.slice(this.pos, this.pos + 4),
+                value: this.src[this.pos+2],
+            } as CharLiteral;
         }
         return null;
     }

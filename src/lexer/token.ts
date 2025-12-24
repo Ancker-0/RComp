@@ -59,8 +59,14 @@ interface TokenCommon {
 }
 
 type NormalToken = {
-    type: TokenType.Identifier | TokenType.LeftParen | TokenType.RightParen | TokenType.LeftBracket | TokenType.RightBracket | TokenType.LeftBrace | TokenType.RightBrace | TokenType.Comma | TokenType.Colon | TokenType.Semicolon | TokenType.Question | TokenType.StringLiteral | TokenType.CharLiteral,
+    type: TokenType.Identifier | TokenType.LeftParen | TokenType.RightParen | TokenType.LeftBracket | TokenType.RightBracket | TokenType.LeftBrace | TokenType.RightBrace | TokenType.Comma | TokenType.Colon | TokenType.Semicolon | TokenType.Question | TokenType.StringLiteral,
     raw: string
+}
+
+export interface CharLiteral {
+    type: TokenType.CharLiteral
+    raw: string
+    value: string
 }
 
 type StringLiteralToken = {
@@ -87,6 +93,6 @@ type IntegerLiteralToken = {
 }
 
 export type TokenGeneric<T> = T & TokenCommon
-export type TokenSpecific = NormalToken | KeywordToken | IntegerLiteralToken | OperatorToken | StringLiteralToken
+export type TokenSpecific = NormalToken | CharLiteral | KeywordToken | IntegerLiteralToken | OperatorToken | StringLiteralToken
 export type Token = TokenCommon & TokenSpecific
 export { NormalToken, KeywordToken, OperatorToken, IntegerLiteralToken, StringLiteralToken }
