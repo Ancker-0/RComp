@@ -29,6 +29,7 @@ export interface CtrlFn extends CtrlBase {
 }
 export interface CtrlFnBlock extends CtrlBase {
     kind: "fnBlock"
+    never: boolean
     type?: Type
     who: ast.BlockExpr
 }
@@ -106,7 +107,7 @@ export class Control {
     onBlockPre(node: ast.BlockExpr) {
         const stack = this.inspect()
         if (stack.length && stack[0]?.kind == "fn")
-            this.prepare(node, () => ({ kind: "fnBlock" }))
+            this.prepare(node, () => ({ kind: "fnBlock", never: false }))
         else
             this.prepare(node, () => ({ kind: "block", never: false }))
     }
@@ -134,7 +135,7 @@ export class Control {
             if (node.expr)
                 info.type = this.sema.inferExprType(node.expr)
             else
-                info.type = unitType()
+                info.type = info.never ? neverType() : unitType()
         } finally {
             this.done()
         }
@@ -163,6 +164,12 @@ export class Control {
                     ? !this.sema.typeCastable(retType, this.sema.inferExprType(node.expr))
                     : !isUnit(retType))
                     this.sema.reportError("Unmatched return type", node)
+                return true
+            }
+        })
+        this.inspect(node).find(val => {
+            if (val.kind == "block") {
+                val.never = true
                 return true
             }
         })

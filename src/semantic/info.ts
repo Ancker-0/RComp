@@ -435,6 +435,7 @@ export function areTypesEqual(type1: Type, type2: Type, symbolTable?: SymbolTabl
         return true;
       }
 
+      // TODO: WTF is this shit?
       // Integer literal compatibility: 'integer' is compatible with any integer type
       const integerTypes = ["i32", "u32", "usize", "isize"];
       if (prim1.name === "integer" && integerTypes.includes(prim2.name)) {

@@ -805,8 +805,6 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           : pre.type
 
       case ast.ASTType.BlockExpr:
-        if (!expr.expr)
-          return unitType()
         return (this.ctrl.ask(expr) as CtrlBlock | CtrlFnBlock)?.type || unitType()
 
       case ast.ASTType.IfExpr:
