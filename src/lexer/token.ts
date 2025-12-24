@@ -28,7 +28,6 @@ export const OPERATORS = [
 
 export enum TokenType {
     Identifier,
-    Literal,
     Keyword,
     Operator,
 
@@ -44,6 +43,7 @@ export enum TokenType {
     Semicolon,
     Question,
 
+    CharLiteral,
     IntegerLiteral,
     StringLiteral,
 }
@@ -59,7 +59,7 @@ interface TokenCommon {
 }
 
 type NormalToken = {
-    type: TokenType.Identifier | TokenType.Literal | TokenType.LeftParen | TokenType.RightParen | TokenType.LeftBracket | TokenType.RightBracket | TokenType.LeftBrace | TokenType.RightBrace | TokenType.Comma | TokenType.Colon | TokenType.Semicolon | TokenType.Question | TokenType.StringLiteral,
+    type: TokenType.Identifier | TokenType.LeftParen | TokenType.RightParen | TokenType.LeftBracket | TokenType.RightBracket | TokenType.LeftBrace | TokenType.RightBrace | TokenType.Comma | TokenType.Colon | TokenType.Semicolon | TokenType.Question | TokenType.StringLiteral | TokenType.CharLiteral,
     raw: string
 }
 

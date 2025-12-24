@@ -119,7 +119,7 @@ export class Lexer {
 
     private nextToken(): Token {
         // Note that keyword must come before identifier.
-        const scanner: (() => TokenSpecific | null)[] = [this.scanKeyword, this.scanIdentifier, this.scanOperator, this.scanSeperator, this.scanIntegerLiteral, this.scanStringLiteral]
+        const scanner: (() => TokenSpecific | null)[] = [this.scanKeyword, this.scanIdentifier, this.scanOperator, this.scanSeperator, this.scanIntegerLiteral, this.scanStringLiteral, this.scanCharLiteral]
         let result = scanner.map(f => f.call(this))
             .reduce((pv, v) => pv ? (v && v.raw.length > pv.raw.length ? v : pv) : v)
         const location: Location = { line: this.line, col: this.col }
@@ -132,10 +132,20 @@ export class Lexer {
         }
         return { ...result, location }
     }
+
+    private scanCharLiteral(): NormalToken | null {
+        if (this.src[this.pos] === "'" && this.src[this.pos + 2] === "'") {
+            return {
+                type: TokenType.CharLiteral,
+                raw: this.src.slice(this.pos, this.pos + 3)
+            };
+        }
+        return null;
+    }
     
     private scanStringLiteral(): NormalToken | null {
         // 处理字符串字面量
-        if (this.src[this.pos] === '"' || this.src[this.pos] === "'") {
+        if (this.src[this.pos] === '"') {
             const quote = this.src[this.pos];
             let endPos = this.pos + 1;
             

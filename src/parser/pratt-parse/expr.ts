@@ -122,6 +122,12 @@ function atomExpr(t: Token): ast.Expr {
                 type: "string",
                 value: t.raw,
             }
+        case TokenType.CharLiteral:
+            return {
+                kind: ast.ASTType.LiteralExpr,
+                type: "char",
+                value: t.raw[1] || "",
+            }
         case TokenType.Identifier:
             return {
                 kind: ast.ASTType.PathExpr,
