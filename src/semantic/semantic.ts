@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -682,7 +682,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     if (expr.value.kind === ast.ASTType.FieldExpr) {
       const fieldExpr = expr.value as ast.FieldExpr;
       const objectType = this.autoDeref(this.inferExprType(fieldExpr.object),
-        tp => ["structType", "arrayType"].includes(tp.kind));
+        tp => ["structType", "arrayType", "u32", "usize", "integer"].includes(tp.kind));
       const methodName = fieldExpr.field;
 
       // Look up the method in the struct's methods
@@ -701,6 +701,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           return usizeType()
         } else
           this.reportError(`Unexpected type for array length`, fieldExpr)
+      } else if (objectType.kind == "primitiveType" && ["u32", "usize", "integer"].includes(objectType.name) && methodName == "to_string") {
+        return StringType()
       } else {
         this.reportError(`Cannot call method on non-struct type`, expr);
         return unitType();

@@ -52,7 +52,7 @@ export interface NeverType extends TypeBase {
 
 export interface PrimitiveType extends TypeBase {
   kind: "primitiveType";
-  name: "i32" | "u32" | "usize" | "isize" | "integer" | "bool" | "char" | "str" | "unit" | "never";
+  name: "i32" | "u32" | "usize" | "isize" | "integer" | "bool" | "char" | "str" | "unit" | "never" | "String";
 }
 
 export function isNever(t: Type) {
@@ -102,6 +102,13 @@ export const unitType: () => Type = () => ({
 
 export const isUnit = (t: Type): t is { kind: "primitiveType", name: "unit" } => 
   (t.kind == "primitiveType" && t.name == "unit")
+export const isString = (t: Type): t is { kind: "primitiveType", name: "String" } => 
+  (t.kind == "primitiveType" && t.name == "String")
+
+export const StringType: () => Type = () => ({
+  kind: "primitiveType",
+  name: "String",
+})
 
 export const neverType: () => Type = () => ({
   kind: "primitiveType",
@@ -219,7 +226,7 @@ export class SymbolTableImpl implements SymbolTable {
 
   // 初始化内置类型
   private initializePrimitiveTypes(): void {
-    const primitiveTypes: Array<[string, "i32" | "u32" | "usize" | "isize" | "bool" | "char" | "str" | "unit"]> = [
+    const primitiveTypes: Array<[string, "i32" | "u32" | "usize" | "isize" | "bool" | "char" | "str" | "unit" | "String"]> = [
       ["i32", "i32"],
       ["u32", "u32"],
       ["usize", "usize"],
@@ -227,7 +234,8 @@ export class SymbolTableImpl implements SymbolTable {
       ["bool", "bool"],
       ["char", "char"],
       ["str", "str"],
-      ["()", "unit"]
+      ["()", "unit"],
+      ["String", "String"],
     ];
 
     for (const [name, typeName] of primitiveTypes) {
