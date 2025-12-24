@@ -1,6 +1,6 @@
 import * as ast from "../parser/ast";
 import { log } from "../util";
-import { isUnit, neverType, SymbolTableImpl, Type, unitType } from "./info";
+import { FunctionSymbol, isUnit, neverType, SymbolTableImpl, Type, unitType } from "./info";
 
 export type CtrlBase = {
     parent?: ast.ASTNode
@@ -12,27 +12,37 @@ export type ControlInfo =
     | CtrlBlock
     | CtrlLoop
     | CtrlCrate
+    | CtrlImpl
     | (CtrlBase & { kind: undefined })
 export interface CtrlCrate extends CtrlBase {
     kind: "crate"
+    who: ast.Crate
+}
+export interface CtrlImpl extends CtrlBase {
+    kind: "impl"
+    who: ast.Impl
 }
 export interface CtrlFn extends CtrlBase {
     kind: "fn"
     returned: boolean
+    who: ast.FuncItem
 }
 export interface CtrlFnBlock extends CtrlBase {
     kind: "fnBlock"
     type?: Type
+    who: ast.BlockExpr
 }
 export interface CtrlBlock extends CtrlBase {
     kind: "block"
     never: boolean
     type?: Type
+    who: ast.BlockExpr
 }
 export interface CtrlLoop extends CtrlBase {
     kind: "loop"
     types: Type[]
     type: Type
+    who: ast.LoopExpr
 }
 
 // The original Omit<T, K> does not produce union type when T is union type
@@ -45,6 +55,7 @@ interface Sema {
     inferExprType: (expr: ast.Expr) => Type
     typeCastable(dest: Type, src: Type): boolean
     unifyType: (u: Type, v: Type) => Type | null
+    exitFunction: FunctionSymbol
 }
 
 export class Control {
@@ -54,7 +65,7 @@ export class Control {
     private prepare(node: ast.ASTNode, call: () => OmitDist<OmitDist<ControlInfo, "who">, "parent"> | undefined) {
         if (!this.memo.has(node)) {
             const r = call()
-            r && this.memo.set(node, { ...r, who: node, parent: this._parentStack.length ? this._parentStack[this._parentStack.length - 1]! : undefined })
+            r && this.memo.set(node, { ...r, who: node as any, parent: this._parentStack.length ? this._parentStack[this._parentStack.length - 1]! : undefined })
         }
         this._parentStack.push(node)
     }
@@ -79,6 +90,8 @@ export class Control {
     // }
     onCratePre(node: ast.Crate) { this.prepare(node, () => ({ kind: "crate" })) }
     onCratePost(node: ast.Crate) { this.done() }
+    onImplPre(node: ast.Impl) { this.prepare(node, () => ({ kind: "impl" })) }
+    onImplPost(node: ast.Impl) { this.done() }
     onFnPre(node: ast.FuncItem) {
         this.prepare(node, () => ({ kind: "fn", returned: false }))
     }
@@ -96,6 +109,13 @@ export class Control {
             this.prepare(node, () => ({ kind: "fnBlock" }))
         else
             this.prepare(node, () => ({ kind: "block", never: false }))
+    }
+    isMain(fn: ast.FuncItem) { return fn.name == "main" && this.inspect(fn)[1]?.kind == "crate" }
+    isMainBlock(node: ast.BlockExpr) {
+        return (r =>
+            r[1]?.kind == "fn"
+            && (r[1].who as ast.FuncItem).name == "main"
+            && r[2]?.kind == "crate")(this.inspect(node))
     }
     onBlockPost(node: ast.BlockExpr) {
         try {
@@ -117,6 +137,18 @@ export class Control {
                 info.type = unitType()
         } finally {
             this.done()
+        }
+    }
+    onPathExprPre(node: ast.PathExpr) {
+        const bind = <T, R>(a: T | undefined, f: (a: T) => R) => a && f(a)
+        if (node.segs.length == 1 && node.segs[0] == "exit" && this.sema.symbolTable.lookupFunction("exit") == this.sema.exitFunction) {
+            if (!bind(this.inspect().find(i => i.kind == "fnBlock"),
+                (blk) => {
+                    const preExpr = blk.who.expr ? blk.who.expr : blk.who.statements[blk.who.statements.length - 1]
+                    const expr = preExpr?.kind == ast.ASTType.ExprStatement ? preExpr.expr : preExpr
+                    return bind(expr, (expr) => (expr.kind == ast.ASTType.CallExpr && expr.value == node))
+                }))
+                this.sema.reportError("Misplaced exit()")
         }
     }
     onReturnExprPre(node: ast.NodeByKind<ast.ASTType.ReturnExpr>) {

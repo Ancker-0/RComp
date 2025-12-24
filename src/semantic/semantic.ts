@@ -28,8 +28,15 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       inferExprType: this.inferExprType.bind(this),
       typeCastable: this.typeCastable.bind(this),
       unifyType: this.unifyType.bind(this),
+      exitFunction: this.exitFunction,
     })
   }
+  exitFunction: FunctionSymbol = {
+    UUID: genUUID(),
+    name: "exit",
+    params: [i32Type()],
+    returnType: unitType()
+  };
 
   // 分析整个 crate
   analyze(crate: ast.Crate): SemanticAnalysisResult {
@@ -162,7 +169,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       return
     }
     this.symbolTable.insertType("Self", myType)
+    this.ctrl.onImplPre(node)
     ast.walk(node, self);
+    this.ctrl.onImplPost(node)
     this.symbolTable.exitScope()
   }
 
@@ -295,13 +304,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       this.ctrl.onFnPre(node)
       const info = this.ctrl.ask(node) as CtrlFn | undefined
       if (node.name == "main" && info && info.parent && this.ctrl.ask(info.parent)?.kind == "crate") {
-        const exitFunction: FunctionSymbol = {
-          UUID: genUUID(),
-          name: "exit",
-          params: [i32Type()],
-          returnType: unitType()
-        };
-        this.symbolTable.insertFunction("exit", exitFunction)
+        this.symbolTable.insertFunction("exit", this.exitFunction)
       }
       // 处理函数体
       if (node.body) {
@@ -513,6 +516,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   onPathExpr(node: ast.NodeByKind<ast.ASTType.PathExpr>, self: ast.Visitor<void>): void {
     // this.log("PathExpr", node)
     // 简单路径（单个标识符）
+    this.ctrl.onPathExprPre(node)
     if (node.segs.length === 1) {
       const name = node.segs[0]!;
 
