@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType, isIntegral } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -60,20 +60,24 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     switch (u.kind) {
       case "arrayType":
         if (v.kind != u.kind) return null
-        const szu = this.evaluateExpr(u.expr)
-        const szv = this.evaluateExpr(v.expr)
+        const szu = u.size
+        const szv = v.size
         const type = this.unifyType(u.type, v.type)
         if (szu != szv || !type)
           return null
         return {
           kind: "arrayType",
-          expr: u.expr,
+          size: u.size,
           type,
           owner
         }
       case "primitiveType":
         if (v.kind != u.kind) return null
         if (u.name == v.name)
+          return u
+        if (u.name == "integer" && isIntegral(v))
+          return v
+        if (v.name == "integer" && isIntegral(u))
           return u
         return null  // TODO: unify integer type
       /*case "functionType":
@@ -464,8 +468,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       }
     }
     
-    // 继续处理子节点
-    ast.walk(node, self);
+    ast.walk(node, self)
+    // this.visit(node.type, self)
+    // this.visit(node.pattern, self)
   }
 
   onConst(node: ast.NodeByKind<ast.ASTType.ConstItem>, self: ast.Visitor<void>): void {
@@ -562,6 +567,11 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     for (const element of node.val) {
       this.visit(element, self);
     }
+    const tps = node.val.map(this.inferExprType.bind(this))
+    const t = (tps as (Type | null)[])
+      .reduce((u, v) => u && v && this.unifyType(u, v))
+    if (!t)
+      this.reportError("Can't determine array type")
   }
   
   onRepeatArrayExpr(node: ast.NodeByKind<ast.ASTType.RepeatArrayExpr>, self: ast.Visitor<void>): void {
@@ -654,7 +664,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         return {
           kind: "arrayType",
           type: elementType,
-          expr: type.expr
+          size: sizeEvaluated?.value as number
         };
 
       case ast.ASTType.RefType:
@@ -696,11 +706,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           return unitType();
         }
       } else if (objectType.kind == "arrayType" && methodName == "len") {
-        const sz = evaluateExpr(objectType.expr, this.symbolTable)
-        if (sz !== undefined && typeof sz.value === 'number') {
-          return usizeType()
-        } else
-          this.reportError(`Unexpected type for array length`, fieldExpr)
+        const sz = objectType.size
+        return usizeType()
       } else if (objectType.kind == "primitiveType" && ["u32", "usize", "integer"].includes(objectType.name) && methodName == "to_string") {
         return StringType()
       } else {
@@ -858,6 +865,26 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           return unitType()
         }
         return ctrl.type
+      case ast.ASTType.ArrayExpr:
+        const tp = (expr.val.map(this.inferExprType.bind(this)) as (Type | null)[])
+          .reduce((u, v) => u && v && this.unifyType(u, v))
+        if (!tp) return unitType()
+        return {
+          kind: "arrayType",
+          type: tp,
+          size: expr.val.length,
+        }
+      case ast.ASTType.RepeatArrayExpr:
+        const sz = this.evaluateExpr(expr.repeat)
+        if (!sz || typeof sz.value !== 'number' || sz.value as number < 0) {
+          this.reportError("Expect repeat time to be non-negative integer")
+          return unitType()
+        }
+        return {
+          kind: "arrayType",
+          type: this.inferExprType(expr.val),
+          size: sz.value as number,
+        }
 
       default:
         // 其他情况使用原有的 inferType
@@ -1025,7 +1052,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       this.checkMutability(node.operand[0]);
       // 检查类型匹配
       this.checkAssignmentTypes(node.operand[0], node.operand[1]);
-    } else if (["+", "-", "*", "/"].indexOf(node.operator) != -1) {
+    } else if (["+", "-", "*", "/", "<"].indexOf(node.operator) != -1) {
       const lhsT = this.inferExprType(node.operand[0])
       const rhsT = this.inferExprType(node.operand[1])
       if (lhsT.kind != "primitiveType" || rhsT.kind != "primitiveType" || (lhsT.name != rhsT.name && lhsT.name != "integer" && rhsT.name != "integer"))
@@ -1136,12 +1163,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         return type.name;
       case "arrayType":
         const elementType = this.typeToString(type.type);
-        const sizeEval = evaluateExpr(type.expr, this.symbolTable);
-        if (sizeEval && typeof sizeEval.value === 'number') {
-          return `[${elementType}; ${sizeEval.value}]`;
-        } else {
-          return `[${elementType}; ?]`;
-        }
+        const sizeEval = type.size
+        return `[${elementType}; ${sizeEval}]`;
+        // if (sizeEval && typeof sizeEval.value === 'number') {
+        //   return `[${elementType}; ${sizeEval.value}]`;
+        // } else {
+        //   return `[${elementType}; ?]`;
+        // }
       case "structType":
         // Find the struct name from symbol table
         const structType = type as StructType;
@@ -1161,14 +1189,31 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   private checkArrayDimensions(declaredType: import("./info").Type, initExpr: ast.Expr, node: ast.ASTNode): void {
     // 检查声明的数组大小
     if (declaredType.kind === "arrayType") {
-      const declaredSizeEval = evaluateExpr(declaredType.expr, this.symbolTable);
-      if (declaredSizeEval && typeof declaredSizeEval.value === 'number') {
-        const declaredSize = declaredSizeEval.value;
+      const declaredSize = declaredType.size
 
-        // 检查初始化表达式的类型
-        if (initExpr.kind === ast.ASTType.ArrayExpr) {
-          // 普通数组初始化 [1, 2, 3]
-          const actualSize = initExpr.val.length;
+      // 检查初始化表达式的类型
+      if (initExpr.kind === ast.ASTType.ArrayExpr) {
+        // 普通数组初始化 [1, 2, 3]
+        const actualSize = initExpr.val.length;
+        if (actualSize !== declaredSize) {
+          this.reportError(
+            `Array size mismatch: declared size is ${declaredSize}, but initialized with ${actualSize} elements`,
+            node
+          );
+          return;
+        }
+
+        // 递归检查多维数组的元素
+        // 检查每个元素是否与声明的元素类型匹配
+        for (let i = 0; i < initExpr.val.length; i++) {
+          const element = initExpr.val[i]!;
+          this.checkArrayDimensions(declaredType.type, element, node);
+        }
+      } else if (initExpr.kind === ast.ASTType.RepeatArrayExpr) {
+        // 重复数组初始化 [1; 3]
+        const repeatEval = evaluateExpr(initExpr.repeat, this.symbolTable);
+        if (repeatEval && typeof repeatEval.value === 'number') {
+          const actualSize = repeatEval.value;
           if (actualSize !== declaredSize) {
             this.reportError(
               `Array size mismatch: declared size is ${declaredSize}, but initialized with ${actualSize} elements`,
@@ -1177,28 +1222,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
             return;
           }
 
-          // 递归检查多维数组的元素
-          // 检查每个元素是否与声明的元素类型匹配
-          for (let i = 0; i < initExpr.val.length; i++) {
-            const element = initExpr.val[i]!;
-            this.checkArrayDimensions(declaredType.type, element, node);
-          }
-        } else if (initExpr.kind === ast.ASTType.RepeatArrayExpr) {
-          // 重复数组初始化 [1; 3]
-          const repeatEval = evaluateExpr(initExpr.repeat, this.symbolTable);
-          if (repeatEval && typeof repeatEval.value === 'number') {
-            const actualSize = repeatEval.value;
-            if (actualSize !== declaredSize) {
-              this.reportError(
-                `Array size mismatch: declared size is ${declaredSize}, but initialized with ${actualSize} elements`,
-                node
-              );
-              return;
-            }
-
-            // 递归检查重复数组的元素
-            this.checkArrayDimensions(declaredType.type, initExpr.val, node);
-          }
+          // 递归检查重复数组的元素
+          this.checkArrayDimensions(declaredType.type, initExpr.val, node);
         }
       }
     }

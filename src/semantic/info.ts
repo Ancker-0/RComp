@@ -67,7 +67,7 @@ export function isNever(t: Type) {
 export interface ArrayType extends TypeBase {
   kind: "arrayType";
   type: Type;
-  expr: ast.Expr;
+  size: number;
 }
 
 // export interface FunctionType extends TypeBase {
@@ -104,6 +104,9 @@ export const isUnit = (t: Type): t is { kind: "primitiveType", name: "unit" } =>
   (t.kind == "primitiveType" && t.name == "unit")
 export const isString = (t: Type): t is { kind: "primitiveType", name: "String" } => 
   (t.kind == "primitiveType" && t.name == "String")
+export const isIntegral = (t: Type): t is { kind: "primitiveType", name: "integer" | "i32" | "u32" | "usize" | "isize" } => {
+  return t.kind == "primitiveType" && ["integer", "i32", "u32", "usize", "isize"].includes(t.name)
+}
 
 export const StringType: () => Type = () => ({
   kind: "primitiveType",
@@ -454,11 +457,9 @@ export function areTypesEqual(type1: Type, type2: Type, symbolTable?: SymbolTabl
         return false;
       }
       // Compare array size expressions (by evaluating them)
-      const size1 = evaluateExpr(type1.expr, symbolTable);
-      const size2 = evaluateExpr(arrayType2.expr, symbolTable);
-      return size1 !== undefined && size2 !== undefined &&
-             typeof size1.value === 'number' && typeof size2.value === 'number' &&
-             size1.value === size2.value;
+      const size1 = type1.size
+      const size2 = arrayType2.size
+      return size1 == size2
     case "structType":
       return type1.UUID == (type2 as StructType).UUID
 

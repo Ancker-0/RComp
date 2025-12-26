@@ -30,8 +30,8 @@ export function inferType(expr: ast.Expr): Type {
     case ast.ASTType.ArrayExpr:
       return inferArrayType(expr);
 
-    case ast.ASTType.RepeatArrayExpr:
-      return inferRepeatArrayType(expr);
+    // case ast.ASTType.RepeatArrayExpr:
+    //   return inferRepeatArrayType(expr);
 
     case ast.ASTType.IndexExpr:
       return inferIndexType(expr);
@@ -117,19 +117,19 @@ function inferArrayType(array: ast.ArrayExpr): Type {
   return {
     kind: "arrayType",
     type: elementType,
-    expr: sizeExpr
+    size: array.val.length,
   };
 }
 
 // 推断重复数组表达式类型
-function inferRepeatArrayType(repeat: ast.RepeatArrayExpr): Type {
-  // 重复数组的类型由其值表达式的类型和重复次数决定
-  return {
-    kind: "arrayType",
-    type: inferType(repeat.val),
-    expr: repeat.repeat  // 重复次数表达式表示数组大小
-  };
-}
+// function inferRepeatArrayType(repeat: ast.RepeatArrayExpr): Type {
+//   // 重复数组的类型由其值表达式的类型和重复次数决定
+//   return {
+//     kind: "arrayType",
+//     type: inferType(repeat.val),
+//     size: repeat.repeat  // 重复次数表达式表示数组大小
+//   };
+// }
 
 // 推断索引表达式类型
 function inferIndexType(index: ast.IndexExpr): Type {
