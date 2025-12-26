@@ -75,7 +75,8 @@ export function inferLiteralType(literal: ast.LiteralExpr): Type {
     case "char":
       return {
         kind: "primitiveType",
-        name: "char"
+        name: "char",
+        owner: { kind: "left value", mutable: false },
       };
 
     case "string":
@@ -83,9 +84,14 @@ export function inferLiteralType(literal: ast.LiteralExpr): Type {
     case "cstring":
     case "rcstring":
       return {
-        kind: "primitiveType",
-        name: "str"
-      };
+        kind: "refType",
+        under: {
+          kind: "primitiveType",
+          name: "str",
+          owner: { kind: "left value", mutable: false },
+        },
+        mutable: false
+      }
 
     default:
       return unitType();

@@ -468,9 +468,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       }
     }
     
-    ast.walk(node, self)
-    // this.visit(node.type, self)
-    // this.visit(node.pattern, self)
+    this.visit(node.type, self)
+    this.visit(node.pattern, self)
   }
 
   onConst(node: ast.NodeByKind<ast.ASTType.ConstItem>, self: ast.Visitor<void>): void {
@@ -972,12 +971,17 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
         // TODO: Type-check that all required fields are present
         // TODO: Type-check that field values match field types
+      } else {
+        this.reportError("Only struct can be constructed")
+        return
       }
-    }
-
-    // Visit all field values
-    for (const field of node.fields) {
-      this.visit(field.value, self);
+      // Visit all field values
+      for (const field of node.fields) {
+        this.visit(field.value, self)
+        const t = typeSymbol.fields.get(field.name)
+        if (!t || !this.typeCastable(t, this.inferExprType(field.value)))
+          this.reportError("Type error: struct field type mismatch")
+      }
     }
   }
 
