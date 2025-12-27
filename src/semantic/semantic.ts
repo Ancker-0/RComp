@@ -1032,16 +1032,27 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         // TODO: Type-check that all required fields are present
         // TODO: Type-check that field values match field types
       } else {
-        this.reportError("Only struct can be constructed")
+        this.reportError("Only struct can be constructed", node)
         return
       }
+
+      const vis: string[] = []
       // Visit all field values
       for (const field of node.fields) {
         this.visit(field.value, self)
+        if (vis.includes(field.name)) {
+          this.reportError("Duplicated init field", node)
+          return
+        }
+        vis.push(field.name)
         const t = typeSymbol.fields.get(field.name)
-        if (!t || !this.typeCastable(t, this.inferExprType(field.value)))
-          this.reportError("Type error: struct field type mismatch")
+        if (!t || !this.typeCastable(t, this.inferExprType(field.value))) {
+          this.reportError("Type error: struct field type mismatch", node)
+          return
+        }
       }
+      if (typeSymbol.fields.size != node.fields.length)
+        this.reportError("missing field in struct expr")
     }
   }
 
