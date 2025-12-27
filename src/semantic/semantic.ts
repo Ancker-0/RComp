@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType, isIntegral } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType, isIntegral, FunctionType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -586,6 +586,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
     // 推断索引表达式的类型（返回数组元素类型）
     const arrayType = this.inferExprType(node.arr);
+    const idxType = this.inferExprType(node.idx)
+    if (!this.typeCastable(usizeType(), idxType))
+      this.reportError(`Array cannot be indexed by ${this.typeToString(idxType)}`)
     // this.log(`IndexExpr type inference:`, { arr: node.arr.kind, arrayType, hasEvaluated: !!node.arr.evaluated });
     if (arrayType.kind === "arrayType") {
       node.evaluated = {
@@ -686,6 +689,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   }
 
   // Helper method to infer the return type of a call expression
+  // TODO: collapse with this.inferFuncType
+  /* Deprecated
   private inferCallExprType(expr: ast.CallExpr): Type {
     // Check if this is a method call (value is FieldExpr)
     if (expr.value.kind === ast.ASTType.FieldExpr) {
@@ -749,6 +754,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.reportError(`Cannot infer type for call expression`, expr);
     return unitType();
   }
+  */
 
   private autoDeref(t: Type, test?: (tp: Type) => boolean): Type {
     while (t.kind == "refType" && (!test || !test(t))) {
@@ -768,6 +774,59 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   //     x => x.kind == )
   // }
 
+  // TODO: collapse with this.inferCallExprType
+  private inferFuncType(node: ast.Expr): FunctionType | null {
+    const symbol2type = (func: FunctionSymbol): FunctionType => ({
+      kind: "functionType",
+      params: func.params,
+      returnType: func.returnType
+    })
+    switch (node.kind) {
+      case ast.ASTType.PathExpr:
+        if (node.segs.length == 2) {
+          let now = this.symbolTable.lookupType(node.segs[0]!)
+          if (!now || now.kind != "structType") return null
+          const r = now.methods?.get(node.segs[1]!)
+          return r ? symbol2type(r) : null
+        } else if (node.segs.length == 1) {
+          const func = this.symbolTable.lookupFunction(node.segs[0]!)
+          return func ? symbol2type(func) : null
+        } else 
+          return null
+      case ast.ASTType.FieldExpr:
+        const objectType = this.autoDeref(this.inferExprType(node.object),
+          tp => ["structType", "arrayType", "u32", "usize", "integer"].includes(tp.kind));
+        const methodName = node.field;
+        if (objectType.kind === "structType") {
+          const structType = objectType as StructType;
+          if (structType.methods && structType.methods.has(methodName)) {
+            const methodSymbol = structType.methods.get(methodName)!;
+            return symbol2type(methodSymbol)
+          } else {
+            this.reportError(`Unknown method '${methodName}' for struct type`, node);
+            return null;
+          }
+        } else if (objectType.kind == "arrayType" && methodName == "len") {
+          const sz = objectType.size
+          return {
+            kind: "functionType",
+            params: [],
+            returnType: usizeType(),
+          }
+        } else if (objectType.kind == "primitiveType" && ["u32", "usize", "integer"].includes(objectType.name) && methodName == "to_string") {
+          return {
+            kind: "functionType",
+            params: [],
+            returnType: StringType(),
+          }
+        } else {
+          this.reportError(`Cannot call method on non-struct type`, node);
+          return null
+        }
+    }
+    return null
+  }
+
   // 类型推断方法（可以访问符号表）
   private inferExprType(expr: ast.Expr): Type {
     // 如果表达式已经有 evaluated 信息，直接返回
@@ -782,7 +841,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     switch (expr.kind) {
       case ast.ASTType.CallExpr:
         // Use the new inferCallExprType method
-        return this.inferCallExprType(expr);
+        // return this.inferCallExprType(expr);
+        return this.inferFuncType(expr.value)?.returnType || unitType()
 
       case ast.ASTType.CastExpr:
         // 类型转换：返回目标类型
@@ -998,13 +1058,26 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       this.visit(node.value, self);
     }
 
-    // Visit all arguments
-    for (const param of node.param) {
-      this.visit(param, self);
+    const tp = this.inferFuncType(node.value)
+    if (!tp) {
+      this.reportError("Function not found!", node)
+      return
     }
 
+    // Visit all arguments
+    // for (const param of node.param) {
+    //   this.visit(param, self);
+    // }
+    node.param.find((param, idx) => {
+      this.visit(param, self)
+      if (!tp.params[idx] || !this.typeCastable(tp.params[idx], this.inferExprType(param))) {
+        this.reportError(`Function parameter type mismatch`, node)
+        return true
+      }
+    })
+
     // Infer the return type and set it on the node
-    const returnType = this.inferCallExprType(node);
+    const returnType = tp.returnType;
     node.evaluated = {
       type: returnType,
       value: undefined
@@ -1056,11 +1129,17 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       this.checkMutability(node.operand[0]);
       // 检查类型匹配
       this.checkAssignmentTypes(node.operand[0], node.operand[1]);
-    } else if (["+", "-", "*", "/", "<"].indexOf(node.operator) != -1) {
+    } else if (["+", "-", "*", "/", "<", ">"].indexOf(node.operator) != -1) {
       const lhsT = this.inferExprType(node.operand[0])
       const rhsT = this.inferExprType(node.operand[1])
+      // TODO: this logic is wrong
       if (lhsT.kind != "primitiveType" || rhsT.kind != "primitiveType" || (lhsT.name != rhsT.name && lhsT.name != "integer" && rhsT.name != "integer"))
         this.reportError(`Unmatched type for operator ${node.operator}`)
+    } else if (["==", "!="].includes(node.operator)) {
+      const lhs = this.inferExprType(node.operand[0])
+      const rhs = this.inferExprType(node.operand[1])
+      if (!this.typeCastable(lhs, rhs) && !this.typeCastable(rhs, lhs))
+        this.reportError(`Cannot compare between ${this.typeToString(lhs)} and ${this.typeToString(rhs)}`)
     }
   }
   

@@ -70,11 +70,11 @@ export interface ArrayType extends TypeBase {
   size: number;
 }
 
-// export interface FunctionType extends TypeBase {
-//   kind: "functionType";
-//   params: TypeSymbol[];
-//   returnType: TypeSymbol;
-// }
+export interface FunctionType extends TypeBase {
+  kind: "functionType";
+  params: Type[];
+  returnType: Type;
+}
 
 export interface StructType extends TypeBase {
   kind: "structType";
