@@ -13,6 +13,7 @@ export type ControlInfo =
     | CtrlLoop
     | CtrlCrate
     | CtrlImpl
+    | CtrlIf
     | (CtrlBase & { kind: undefined })
 export interface CtrlCrate extends CtrlBase {
     kind: "crate"
@@ -38,6 +39,10 @@ export interface CtrlBlock extends CtrlBase {
     never: boolean
     type?: Type
     who: ast.BlockExpr
+}
+export interface CtrlIf extends CtrlBase {
+    kind: "if"
+    who: ast.IfExpr
 }
 export interface CtrlLoop extends CtrlBase {
     kind: "loop"
@@ -126,6 +131,8 @@ export class Control {
                 const fn = fnInfo?.who as ast.FuncItem
                 if (fn?.body !== node)
                     throw new Error(`Unexpected error: fn doesn't match with block`)
+                if ((this.memo.get(node) as CtrlFnBlock).never)
+                    fnInfo.returned = true
                 if (fn.body
                     && fn.body.expr
                     && !this.sema.typeCastable(this.sema.analyzeType(fn.returnType), this.sema.inferExprType(fn.body.expr)))
@@ -158,7 +165,8 @@ export class Control {
     onReturnExprPost(node: ast.NodeByKind<ast.ASTType.ReturnExpr>) {
         const r = this.inspect(node).find(val => {
             if (val?.kind == "fn") {
-                val.returned = true
+                // if (this.inspect(node)[1]?.kind == "fnBlock")
+                //     val.returned = true
                 const retType = this.sema.analyzeType((val.who as ast.FuncItem).returnType)
                 if (node.expr
                     ? !this.sema.typeCastable(retType, this.sema.inferExprType(node.expr))
@@ -168,7 +176,7 @@ export class Control {
             }
         })
         this.inspect(node).find(val => {
-            if (val.kind == "block") {
+            if (val.kind == "block" || val.kind == "fnBlock") {
                 val.never = true
                 return true
             }
@@ -176,6 +184,13 @@ export class Control {
         this.done()
         if (!r)
             return this.sema.reportError(`return statement outside function`, node)
+    }
+    onIfPre(node: ast.IfExpr) { this.prepare(node, () => ({ kind: "if" }))}
+    onIfPost(node: ast.IfExpr) {
+        this.done()
+        // TODO: this.memo.get(node.else) is not necessarily a CtrlBlock
+        if (node.else && (this.memo.get(node.then) as CtrlBlock).never && (this.memo.get(node.else) as CtrlBlock).never)
+            this.inspect(node).find(val => val.kind == "block" && (val.never = true))
     }
     onLoopPre(node: ast.LoopExpr) {
         this.prepare(node, () => ({ kind: "loop", types: [], type: neverType() }))

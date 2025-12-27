@@ -1052,7 +1052,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         }
       }
       if (typeSymbol.fields.size != node.fields.length)
-        this.reportError("missing field in struct expr")
+        this.reportError("missing field in struct expr", node)
     }
   }
 
@@ -1325,6 +1325,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
   // 处理 if 表达式
   onIf(node: ast.NodeByKind<ast.ASTType.IfExpr>, self: ast.Visitor<void>): void {
+    this.ctrl.onIfPre(node)
     // 分析条件表达式
     this.visit(node.cond, self);
 
@@ -1344,6 +1345,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     if (node.else) {
       this.visit(node.else, self);
     }
+    this.ctrl.onIfPost(node)
   }
 
   // Handle while expression
