@@ -41,6 +41,7 @@ export type Type =
   | StructType
   | RefType
   | NeverType
+  | EnumType
 
 export interface TypeBase {
   kind: string
@@ -52,6 +53,12 @@ export interface TypeBase {
 
 export interface NeverType extends TypeBase {
   kind: "never"
+}
+
+export interface EnumType extends TypeBase {
+  kind: "enum",
+  fields: string[],
+  UUID: UUID,
 }
 
 export interface PrimitiveType extends TypeBase {

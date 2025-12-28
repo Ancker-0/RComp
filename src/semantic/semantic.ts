@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType, isIntegral, FunctionType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType, isIntegral, FunctionType, EnumType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -136,9 +136,10 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
       // Pass 1: Register all struct types
       for (const item of node.items) {
-        if (item.kind === ast.ASTType.StructItem) {
-          this.registerStruct(item);
-        }
+        if (item.kind === ast.ASTType.StructItem)
+          this.registerStruct(item)
+        else if (item.kind === ast.ASTType.EnumItem)
+          this.registerEnum(item)
       }
 
       // Pass 2: Register all impl blocks (methods)
@@ -231,6 +232,15 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         throw error;
       }
     }
+  }
+
+  private registerEnum(node: ast.EnumItem): void {
+    const en: EnumType = {
+      kind: "enum",
+      fields: node.fields,
+      UUID: genUUID(),
+    }
+    this.symbolTable.insertType(node.name, en)
   }
 
   // Register impl block methods
@@ -407,6 +417,10 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         if (src.name == "integer" && ["never"].indexOf(dest.name) != -1)
           return true
         return false
+      case "enum":
+        if (dest.kind != "enum")
+          return false
+        return dest.UUID == src.UUID
     }
     return false
   }
@@ -872,6 +886,13 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           if (varSymbol) {
             return varSymbol.type;
           }
+        } else if (expr.segs.length === 2) {
+          const name = expr.segs[0]!
+          const en = this.symbolTable.lookupType(name)
+          if (en?.kind == "enum" && en.fields.includes(expr.segs[1]!))
+            return en
+          else
+            return unitType()
         }
         // TODO: 处理复杂路径（如 mod::Type::method）
         return unitType();

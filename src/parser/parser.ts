@@ -336,6 +336,7 @@ export const enumDecl: ParserK<ast.EnumItem> = fmap(seq(keyword("enum"), id(Toke
     id(TokenType.LeftBrace), many(seq(id(TokenType.Identifier), id(TokenType.Comma))), maybe(id(TokenType.Identifier)), id(TokenType.RightBrace)),
     r => ({
         kind: ast.ASTType.EnumItem,
+        name: r[1].raw,
         fields: [...r[3].map(t => t[0].raw), ...(r[4] ? [r[4].raw] : [])],
     }))
 

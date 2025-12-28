@@ -222,6 +222,7 @@ export interface ExprStatement extends ASTBase {
 export type Item = FuncItem | ConstItem | StructItem | /* Trait | */ Impl | EnumItem
 export interface EnumItem extends ASTBase {
   kind: ASTType.EnumItem
+  name: string
   fields: string[]
 }
 export interface FuncItem extends ASTBase {
@@ -366,6 +367,7 @@ export interface Visitor<R = void> {
     onStructExpr?(node: NodeByKind<ASTType.StructExpr>, self: Visitor<R>): R
     onFieldExpr?(node: NodeByKind<ASTType.FieldExpr>, self: Visitor<R>): R
     onImpl?(node: NodeByKind<ASTType.InherentImpl>, self: Visitor<R>): R
+    onEnum?(node: NodeByKind<ASTType.EnumItem>, self: Visitor<R>): R
     // TODO
     default?(node: ASTNode, self: Visitor<R>): R
 }
@@ -418,6 +420,8 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return (visitor.onFieldExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.InherentImpl:
       return (visitor.onImpl || visitor.default)?.call?.(visitor, node, visitor)
+    case ASTType.EnumItem:
+      return (visitor.onEnum || visitor.default)?.call?.(visitor, node, visitor)
     default:
       return visitor.default?.(node, visitor)
   }
@@ -452,6 +456,7 @@ export function getChildren(node: ASTNode): ASTNode[] {
         onStructExpr: n => [n.path, ...n.fields.map(f => f.value)],
         onFieldExpr: n => [n.object],
         onImpl: n => [n.type, ...n.const, ...n.fn],
+        onEnum: n => [],
         default: n => [],
     }) ?? []
 }
