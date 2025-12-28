@@ -6,7 +6,8 @@
         "check": "tsc --noEmit",
         "test": "jest --verbose",
         "start": "ts-node src/index.ts",
-        "test:semantic": "ts-node src/test/semantic1-test.ts"
+        "test:semantic": "ts-node src/test/semantic1-test.ts",
+        "test:sema2": "ts-node src/test/semantic1-test.ts -d semantic-2"
     },
     "devDependencies": {
         "@types/jest": "^30.0.0",

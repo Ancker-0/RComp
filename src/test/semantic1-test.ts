@@ -5,11 +5,12 @@ import { SemanticAnalyzer } from "../semantic/semantic";
 import * as fs from "fs";
 import * as path from "path";
 
+type Arg = { testPattern?: string, testDir?: string }
+
 // 解析命令行参数
-function parseCommandLineArgs(): { testPattern?: string } {
+function parseCommandLineArgs(): Arg {
   const args = process.argv.slice(2); // 跳过 node 和脚本路径
-  const options = {
-    testPattern: undefined as string | undefined
+  const options: Arg = {
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -20,6 +21,14 @@ function parseCommandLineArgs(): { testPattern?: string } {
         i++; // 跳过下一个参数
       } else {
         console.error("错误: --test 参数需要一个值");
+        process.exit(1);
+      }
+    } else if (arg == "--dir" || arg == "-d") {
+      if (i + 1 < args.length) {
+        options.testDir = args[i + 1]
+        i++
+      } else {
+        console.error(`错误: ${arg} 参数需要一个值`);
         process.exit(1);
       }
     } else if (!arg.startsWith("-")) {
@@ -46,8 +55,9 @@ function isTestMatch(testName: string, pattern?: string): boolean {
 }
 
 // 测试语义分析器对 semantics1 测试用例的处理
-async function runSemantic1Tests(testPattern?: string) {
-  const testCasesDir = path.join(__dirname, "../../RCompiler-Testcases/semantic-1/src");
+async function runSemantic1Tests(arg: Arg) {
+  const { testPattern, testDir } = arg
+  const testCasesDir = path.join(__dirname, `../../RCompiler-Testcases/${testDir || "semantic-1"}/src`);
   
   // 获取所有测试用例子目录
   const testDirs = fs.readdirSync(testCasesDir, { withFileTypes: true })
@@ -152,4 +162,4 @@ function parseTestMetadata(sourceCode: string): { verdict: string } {
 
 // 运行测试
 const args = parseCommandLineArgs();
-runSemantic1Tests(args.testPattern).catch(console.error);
+runSemantic1Tests(args).catch(console.error);
