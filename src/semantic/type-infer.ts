@@ -63,6 +63,9 @@ export function inferLiteralType(literal: ast.LiteralExpr): Type {
         case undefined:
         case "":
           // No suffix: return unspecialized integer type
+          const val = Number(literal.value)
+          if (val > 2147483647)
+            return u32Type();
           return integerType();
         default:
           // This should never happen as lexer validates suffixes

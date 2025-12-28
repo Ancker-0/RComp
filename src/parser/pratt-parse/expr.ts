@@ -236,12 +236,19 @@ export function parseExpr(src: Info, gate: BindPower): [ast.Expr, Info] {
             start = rest[1].start
         } else {
             const rest = parseExpr({ ...src, start }, rbp)
-            ret = {
-                kind: ast.ASTType.UnaryExpr,
-                operator: f.raw,
-                operand: rest[0],
-                position: "prefix",
-            }
+            // TODO: Find a better way to deal with literal integers
+            if (rest[0].kind == ast.ASTType.LiteralExpr && rest[0].type == "integer" && f.raw == "-")
+                ret = {
+                    ...rest[0],
+                    value: `-${rest[0].value}`,
+                }
+            else
+                ret = {
+                    kind: ast.ASTType.UnaryExpr,
+                    operator: f.raw,
+                    operand: rest[0],
+                    position: "prefix",
+                }
             start = rest[1].start
         }
     } else if (f.type == TokenType.Keyword) {
