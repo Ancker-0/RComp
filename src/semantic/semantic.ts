@@ -268,7 +268,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         name: method.name,
         params: paramTypes,
         returnType: returnType,
-        declaration: method
+        declaration: method,
+        self: method.self
       };
 
       // Add to struct's methods map
@@ -794,13 +795,28 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         } else 
           return null
       case ast.ASTType.FieldExpr:
-        const objectType = this.autoDeref(this.inferExprType(node.object),
-          tp => ["structType", "arrayType", "u32", "usize", "integer"].includes(tp.kind));
+        const t = this.inferExprType(node.object)
+        const mut = (t.kind == "structType" && t.methods?.get(node.field)?.self) || undefined
+        const objectType = this.autoDeref(t,
+          tp =>
+            ["structType", "arrayType"].includes(tp.kind)
+            || tp.kind == "primitiveType" && ["u32", "usize", "integer"].includes(tp.name)
+            // || tp.kind == "refType" && tp.mutable
+        );
         const methodName = node.field;
         if (objectType.kind === "structType") {
           const structType = objectType as StructType;
           if (structType.methods && structType.methods.has(methodName)) {
             const methodSymbol = structType.methods.get(methodName)!;
+            if (methodSymbol.self?.mutable) {
+              const n = this.autoDeref(t,
+                tp => tp.kind == "structType" || (tp.kind == "refType" && !tp.mutable)
+              )
+              if (n.kind != "structType")
+                this.reportError("cannot convert immutable reference to mutable reference", node)
+              if (methodSymbol.self.ref && !n.owner?.mutable)
+                this.reportError("cannot convert immutable value to mutable reference", node)
+            }
             return symbol2type(methodSymbol)
           } else {
             this.reportError(`Unknown method '${methodName}' for struct type`, node);

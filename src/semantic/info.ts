@@ -26,6 +26,10 @@ export interface FunctionSymbol {
   params: Type[];
   returnType: Type;
   declaration?: ast.FuncItem;
+  self?: {
+    ref: boolean
+    mutable: boolean
+  }
 }
 
 // 类型定义
