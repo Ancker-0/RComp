@@ -54,6 +54,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   }
 
   unifyType = (u: Type, v: Type): Type | null => {
+    if (isNever(u)) return v
+    if (isNever(v)) return u
     if (u.kind != v.kind)
       return null
     const owner = u.owner ? u.owner : v.owner  // TODO: be consistent
@@ -1381,6 +1383,10 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // 分析 else 分支（如果存在）
     if (node.else) {
       this.visit(node.else, self);
+      const tThen = (this.ctrl.ask(node.then) as CtrlBlock)?.type
+      const tElse = (this.ctrl.ask(node.else) as CtrlBlock)?.type
+      if (tThen && tElse && !this.unifyType(tThen, tElse))
+        this.reportError("type mismatch in if expression", node)
     }
     this.ctrl.onIfPost(node)
   }
