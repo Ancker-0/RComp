@@ -31,3 +31,12 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Prepare semantic-1 testcase
+        uses: actions/checkout@v4
+        with:
+          repository: peterzheng98/RCompiler-Testcases
+          path: RCompiler-Testcases
+
+      - name: Test semantic-1
+        run: npm test:semantic
