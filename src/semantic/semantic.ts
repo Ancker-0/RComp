@@ -994,7 +994,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       case "-":
         return this.inferExprType(expr.operand);
       case "!":
-        return boolType();
+        return this.inferExprType(expr.operand)
       case "*":
         const t = this.inferExprType(expr.operand)
         if (t.kind != "refType")
