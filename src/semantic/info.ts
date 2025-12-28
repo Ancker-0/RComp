@@ -335,7 +335,8 @@ export class SymbolTableImpl implements SymbolTable {
     
     // 检查当前作用域是否已存在同名符号
     if (currentScope.variables.has(name)) {
-      throw new SemanticError(`Duplicate variable declaration: ${name}`);
+      // Shadowing is allowed in rust
+      // throw new SemanticError(`Duplicate variable declaration: ${name}`);
     }
     
     // 插入符号
