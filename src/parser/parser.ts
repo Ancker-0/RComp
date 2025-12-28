@@ -22,7 +22,7 @@ export const referencePattern: ParserK<ast.ReferencePattern> = fmap(
 )
 export const pattern: ParserK<ast.Pattern> = or(referencePattern, identifierPattern)
 
-export const exprWithBlock = lazy(() => or(loop, whileE, ifE))
+export const exprWithBlock = lazy(() => or(loop, whileE, ifE, block))
 export const expr = or(lazy(()=>exprRaw), lazy(()=>loop))  // TODO: add expression with block
 /**
  * TODO: now `if (a) { b } else { c }` has two ways to interpret as an expression:
