@@ -5,6 +5,7 @@ export enum ASTType {
     Crate,
 
     Statement,
+    EnumItem,
     ConstItem,
     FnItem,
     FnParam,
@@ -218,7 +219,11 @@ export interface ExprStatement extends ASTBase {
     expr: Expr
 }
 
-export type Item = FuncItem | ConstItem | StructItem | /* Trait | */ Impl
+export type Item = FuncItem | ConstItem | StructItem | /* Trait | */ Impl | EnumItem
+export interface EnumItem extends ASTBase {
+  kind: ASTType.EnumItem
+  fields: string[]
+}
 export interface FuncItem extends ASTBase {
     kind: ASTType.FnItem
     name: string
@@ -321,6 +326,7 @@ export type ASTNode =
     | ExprStatement
 
     // Item 节点
+    | EnumItem
     | FuncItem
     | ConstItem
     | StructItem

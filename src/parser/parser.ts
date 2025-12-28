@@ -332,7 +332,14 @@ export const inherentImpl: ParserK<ast.InherentImpl> = fmap(
 // export const impl = or(inherentImpl, traitImpl)
 export const impl = inherentImpl
 
-export const item: ParserK<ast.Item> = or(fn, constItem, structItem, /*trait,*/ impl)
+export const enumDecl: ParserK<ast.EnumItem> = fmap(seq(keyword("enum"), id(TokenType.Identifier),
+    id(TokenType.LeftBrace), many(seq(id(TokenType.Identifier), id(TokenType.Comma))), maybe(id(TokenType.Identifier)), id(TokenType.RightBrace)),
+    r => ({
+        kind: ast.ASTType.EnumItem,
+        fields: [...r[3].map(t => t[0].raw), ...(r[4] ? [r[4].raw] : [])],
+    }))
+
+export const item: ParserK<ast.Item> = or(fn, constItem, structItem, /*trait,*/ impl, enumDecl)
 export const crate: ParserK<ast.Crate> = fmap(more(item), items => ({
     kind: ast.ASTType.Crate,
     items,
