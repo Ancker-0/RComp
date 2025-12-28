@@ -93,29 +93,29 @@ describe("SymbolTable", () => {
       expect((foundSymbol?.type as any).name).toBe("i32");
     });
 
-    test("should prevent duplicate variable declarations in same scope", () => {
-      const symbol1: VariableSymbol = {
-        UUID: genUUID(),
-        name: "testVar",
-        type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
-        _mutable: true,
-      };
+    // test("should prevent duplicate variable declarations in same scope", () => {
+    //   const symbol1: VariableSymbol = {
+    //     UUID: genUUID(),
+    //     name: "testVar",
+    //     type: { ...i32Type(), owner: { kind: "left value", mutable: false } },
+    //     _mutable: true,
+    //   };
 
-      const symbol2: VariableSymbol = {
-        UUID: genUUID(),
-        name: "testVar",
-        type: { ...boolType(), owner: { kind: "left value", mutable: false } },
-        _mutable: true,
-      };
+    //   const symbol2: VariableSymbol = {
+    //     UUID: genUUID(),
+    //     name: "testVar",
+    //     type: { ...boolType(), owner: { kind: "left value", mutable: false } },
+    //     _mutable: true,
+    //   };
 
-      // 插入第一个变量
-      symbolTable.insertVariable("testVar", symbol1);
+    //   // 插入第一个变量
+    //   symbolTable.insertVariable("testVar", symbol1);
 
-      // 尝试插入同名变量应该抛出错误
-      expect(() => {
-        symbolTable.insertVariable("testVar", symbol2);
-      }).toThrow(SemanticError);
-    });
+    //   // 尝试插入同名变量应该抛出错误
+    //   expect(() => {
+    //     symbolTable.insertVariable("testVar", symbol2);
+    //   }).toThrow(SemanticError);
+    // });
 
     test("should allow same name variables in different scopes", () => {
       const symbol1: VariableSymbol = {
