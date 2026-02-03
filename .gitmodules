@@ -1,0 +1,3 @@
+[submodule "RCompiler-Testcases"]
+	path = RCompiler-Testcases
+	url = git@github.com:peterzheng98/RCompiler-Testcases.git

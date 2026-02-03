@@ -1,5 +1,5 @@
 import { tokenize } from "./lexer/index";
-import util from 'util'
+import * as util from 'node:util'
 import { crate, fn, structFields, type } from "./parser/parser";
 import { execute, maybe, none, seq, seq1, some } from "./parser/parsek/parsek";
 import { expr } from "./parser/pratt-parse/expr";
@@ -16,6 +16,9 @@ async function readStdinAll(): Promise<string> {
         let chunks: Buffer[] = [];
 
         process.stdin.on('data', (chunk) => {
+          if (typeof chunk === 'string')
+            chunks.push(Buffer.from(chunk, 'utf-8'));
+          else
             chunks.push(chunk);
         });
 
