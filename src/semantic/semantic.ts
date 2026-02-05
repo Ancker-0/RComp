@@ -17,6 +17,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
   private errors: SemanticError[] = [];
   private loopDepth: number = 0; // 跟踪循环嵌套深度
   private inLoopContext: boolean = false; // 是否在 loop 中（支持 break value）
+  private nodeTypes: Map<ast.ASTNode, Type> = new Map(); // 记录 AST 节点的类型
   ctrl: Control
 
   constructor() {
@@ -45,6 +46,16 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     return {
       errors: this.errors
     };
+  }
+
+  // 获取符号表（用于代码生成）
+  getSymbolTable(): SymbolTableImpl {
+    return this.symbolTable;
+  }
+
+  // 获取 AST 节点的类型（用于代码生成）
+  getNodeType(node: ast.ASTNode): Type | undefined {
+    return this.nodeTypes.get(node);
   }
 
   // 报告错误
@@ -322,6 +333,12 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       const info = this.ctrl.ask(node) as CtrlFn | undefined
       if (node.name == "main" && info && info.parent && this.ctrl.ask(info.parent)?.kind == "crate") {
         this.symbolTable.insertFunction("exit", this.exitFunction)
+
+        // 标记 main 函数（供代码生成使用）
+        const funcSym = this.symbolTable.lookupFunction(node.name)
+        if (funcSym) {
+          funcSym.isMain = true
+        }
       }
       // 处理函数体
       if (node.body) {
@@ -472,7 +489,7 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         _mutable: node.pattern.mutable, // 添加可变性信息
       };
       // this.log('...', node)
-      
+
       // 插入符号表
       try {
         this.symbolTable.insertVariable(node.pattern.name, symbol);
@@ -483,6 +500,14 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           throw error;
         }
       }
+
+      // 记录类型信息供代码生成使用
+      this.nodeTypes.set(node.pattern, symbol.type);
+    }
+
+    // 记录初始化表达式的类型
+    if (node.expr && inferredType) {
+      this.nodeTypes.set(node.expr, inferredType);
     }
     
     this.visit(node.type, self)
@@ -549,6 +574,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           type: varSymbol.type,
           value: undefined // 运行时求值
         };
+        // 记录到 nodeTypes Map 供代码生成使用
+        this.nodeTypes.set(node, varSymbol.type);
         // this.log(`PathExpr ${name} evaluated:`, node.evaluated.type);
         return;
       }
@@ -1191,6 +1218,10 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       if (!this.typeCastable(lhs, rhs) && !this.typeCastable(rhs, lhs))
         this.reportError(`Cannot compare between ${this.typeToString(lhs)} and ${this.typeToString(rhs)}`)
     }
+
+    // 记录二元表达式的类型供代码生成使用
+    const resultType = this.inferBinaryType(node);
+    this.nodeTypes.set(node, resultType);
   }
   
   // 辅助方法：检查表达式是否可变

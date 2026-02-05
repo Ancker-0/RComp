@@ -30,6 +30,7 @@ export interface FunctionSymbol {
     ref: boolean
     mutable: boolean
   }
+  isMain?: boolean;  // 标记是否是 main 函数（用于代码生成时决定返回类型）
 }
 
 // 类型定义

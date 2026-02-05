@@ -6,6 +6,7 @@ import { expr } from "./parser/pratt-parse/expr";
 import { id, operator } from "./parser/parsek/pkutil";
 import { TokenType } from "./lexer/token";
 import { SemanticAnalyzer } from "./semantic/semantic";
+import { CodeGenerator } from "./IR";
 
 const sampleSrc = `fn main() {
     let numbers: [i32; 3] = [10, 20, 30];
@@ -81,6 +82,12 @@ async function readStdinAll(): Promise<string> {
       } else {
         console.log("✓ No semantic errors found");
       }
+
+      // 生成 LLVM IR
+      console.log("\n=== Generating LLVM IR ===");
+      const codegen = new CodeGenerator(analyzer);
+      const llvmIR = codegen.generate(crateNode);
+      console.log(llvmIR);
     } else {
       console.log("Parse failed!");
       console.log("First 10 tokens:");
