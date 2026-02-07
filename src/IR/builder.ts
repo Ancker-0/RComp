@@ -170,9 +170,9 @@ export class LLVMIRBuilder {
   /**
    * Generate a comparison operation (icmp).
    */
-  icmp(cond: string, left: string, right: string): string {
+  icmp(cond: string, left: string, right: string, type: string = "i32"): string {
     const resultReg = this.freshRegister();
-    this.emitInstruction(`${resultReg} = icmp ${cond} i32 ${left}, ${right}`);
+    this.emitInstruction(`${resultReg} = icmp ${cond} ${type} ${left}, ${right}`);
     return resultReg;
   }
 
@@ -332,6 +332,24 @@ export class LLVMIRBuilder {
    */
   getIR(): string {
     return this.buffer.join("\n");
+  }
+
+  /**
+   * Zero-extend a value to a larger type.
+   */
+  zext(value: string, fromType: string, toType: string): string {
+    const resultReg = this.freshRegister();
+    this.emitInstruction(`${resultReg} = zext ${fromType} ${value} to ${toType}`);
+    return resultReg;
+  }
+
+  /**
+   * Truncate a value to a smaller type.
+   */
+  trunc(value: string, fromType: string, toType: string): string {
+    const resultReg = this.freshRegister();
+    this.emitInstruction(`${resultReg} = trunc ${fromType} ${value} to ${toType}`);
+    return resultReg;
   }
 
   /**

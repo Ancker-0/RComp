@@ -282,7 +282,26 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
     const comparisonOps: Operator[] = ["==", "!=", "<", ">", "<=", ">="];
     if (comparisonOps.includes(node.operator)) {
       const cond = this.builder.mapComparisonOperator(node.operator);
-      const resultReg = this.builder.icmp(cond, left.register, right.register);
+
+      // Handle type mismatches in comparisons
+      let leftReg = left.register;
+      let rightReg = right.register;
+      let cmpType = left.type;
+
+      // If types differ, extend the smaller type to match the larger type
+      if (left.type !== right.type) {
+        if (left.type === "i64" && right.type === "i32") {
+          // Extend right to i64
+          rightReg = this.builder.zext(rightReg, "i32", "i64");
+          cmpType = "i64";
+        } else if (left.type === "i32" && right.type === "i64") {
+          // Extend left to i64
+          leftReg = this.builder.zext(leftReg, "i32", "i64");
+          cmpType = "i64";
+        }
+      }
+
+      const resultReg = this.builder.icmp(cond, leftReg, rightReg, cmpType);
       return { register: resultReg, type: "i1", isLValue: false };
     } else {
       // Arithmetic operation
@@ -299,9 +318,9 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
     const rightExpr = node.operand[1];
     const op = node.operator;
 
-    // Left operand must be an lvalue (PathExpr for variables)
-    if (leftExpr.kind !== ast.ASTType.PathExpr) {
-      throw new Error("Invalid assignment target: only variables supported");
+    // Left operand must be an lvalue (PathExpr or IndexExpr)
+    if (leftExpr.kind !== ast.ASTType.PathExpr && leftExpr.kind !== ast.ASTType.IndexExpr) {
+      throw new Error("Invalid assignment target: only variables and array indexing supported");
     }
 
     // Generate right-hand side value
@@ -309,8 +328,17 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
 
     // For compound assignments, we need to load the current value first
     if (op !== "=") {
-      const varName = leftExpr.segs[0]!;
-      const currentValue = this.builder.load(varName);
+      let currentValue: LLVMValue;
+
+      if (leftExpr.kind === ast.ASTType.PathExpr) {
+        const varName = leftExpr.segs[0]!;
+        const loaded = this.builder.load(varName);
+        currentValue = { register: loaded.register, type: loaded.type, isLValue: false };
+      } else if (leftExpr.kind === ast.ASTType.IndexExpr) {
+        currentValue = this.handleIndexLoad(leftExpr);
+      } else {
+        throw new Error("Invalid assignment target");
+      }
 
       // Apply the operation
       const baseOp = op.substring(0, op.length - 1) as Operator;
@@ -322,10 +350,64 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
     }
 
     // Store the value
-    const varName = leftExpr.segs[0]!;
-    this.builder.store(value.register, value.type, varName);
+    if (leftExpr.kind === ast.ASTType.PathExpr) {
+      const varName = leftExpr.segs[0]!;
+      this.builder.store(value.register, value.type, varName);
+    } else if (leftExpr.kind === ast.ASTType.IndexExpr) {
+      this.handleIndexStore(leftExpr, value);
+    }
 
     return value;
+  }
+
+  /**
+   * Handle loading a value from an array index (for compound assignments).
+   */
+  private handleIndexLoad(node: ast.IndexExpr): LLVMValue {
+    // This is essentially the same as onIndexExpr
+    return this.onIndexExpr(node, this as any)!;
+  }
+
+  /**
+   * Handle storing a value to an array index.
+   */
+  private handleIndexStore(node: ast.IndexExpr, value: LLVMValue): void {
+    // Currently only support variable arrays (PathExpr)
+    if (node.arr.kind !== ast.ASTType.PathExpr) {
+      throw new Error("Only variable arrays supported in MVP");
+    }
+
+    const arrName = (node.arr as ast.PathExpr).segs[0]!;
+    const arrType = this.analyzer.getNodeType(node.arr);
+
+    if (!arrType || arrType.kind !== "arrayType") {
+      throw new Error("Indexing non-array type");
+    }
+
+    const elementType = this.builder.getType(arrType.type);
+
+    // Generate index value
+    const idxValue = ast.visit(node.idx, this)!;
+
+    // Get array allocation
+    const alloc = this.builder.getAllocation(arrName);
+    if (!alloc) {
+      throw new Error(`Array ${arrName} not allocated`);
+    }
+
+    // GEP to get element pointer
+    const idxType = idxValue.type; // Use the actual type of the index (i32 for i32, i64 for usize)
+    const gepReg = this.builder.getelementptr(
+      alloc.type,
+      alloc.allocaRegister,
+      [
+        { value: "0", type: "i32" },
+        { value: idxValue.register, type: idxType }
+      ]
+    );
+
+    // Store value
+    this.builder.emitInstruction(`store ${elementType} ${value.register}, ptr ${gepReg}`);
   }
 
   /**
@@ -358,6 +440,52 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
     // Load from stack allocation
     const loaded = this.builder.load(varName);
     return { register: loaded.register, type: llvmType, isLValue: false };
+  }
+
+  /**
+   * Visit an index expression (array indexing).
+   */
+  onIndexExpr(node: ast.IndexExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue {
+    // Currently only support variable arrays (PathExpr)
+    if (node.arr.kind !== ast.ASTType.PathExpr) {
+      throw new Error("Only variable arrays supported in MVP");
+    }
+
+    const arrName = (node.arr as ast.PathExpr).segs[0]!;
+    const arrType = this.analyzer.getNodeType(node.arr);
+
+    if (!arrType || arrType.kind !== "arrayType") {
+      throw new Error("Indexing non-array type");
+    }
+
+    const elementType = this.builder.getType(arrType.type);
+
+    // Generate index value
+    const idxValue = ast.visit(node.idx, this)!;
+
+    // Get array allocation
+    const alloc = this.builder.getAllocation(arrName);
+    if (!alloc) {
+      throw new Error(`Array ${arrName} not allocated`);
+    }
+
+    // GEP: get pointer to element
+    // For array[index], we need: ptr, i32 0, <index-type> index
+    const idxType = idxValue.type; // Use the actual type of the index (i32 for i32, i64 for usize)
+    const gepReg = this.builder.getelementptr(
+      alloc.type,
+      alloc.allocaRegister,
+      [
+        { value: "0", type: "i32" },  // First index (array itself)
+        { value: idxValue.register, type: idxType }  // Element index with correct type
+      ]
+    );
+
+    // Load the element value
+    const loadedReg = this.builder.freshRegister();
+    this.builder.emitInstruction(`${loadedReg} = load ${elementType}, ptr ${gepReg}`);
+
+    return { register: loadedReg, type: elementType, isLValue: false };
   }
 
   /**
@@ -419,10 +547,92 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
 
     // Store initial value if provided
     if (node.expr) {
-      const initValue = ast.visit(node.expr, this)!;
-      this.builder.store(initValue.register, varType, varName);
+      const initType = this.analyzer.getNodeType(node.expr);
+
+      // Check if this is an array initialization
+      if (node.expr.kind === ast.ASTType.ArrayExpr) {
+        this.initializeArray(varName, node.expr as ast.ArrayExpr, patternType);
+      } else if (node.expr.kind === ast.ASTType.RepeatArrayExpr) {
+        this.initializeRepeatArray(varName, node.expr as ast.RepeatArrayExpr, patternType);
+      } else {
+        // Regular variable initialization
+        const initValue = ast.visit(node.expr, this)!;
+        this.builder.store(initValue.register, varType, varName);
+      }
     }
+
     return null;
+  }
+
+  /**
+   * Initialize an array from an ArrayExpr.
+   */
+  private initializeArray(varName: string, node: ast.ArrayExpr, arrayType: Type): void {
+    if (arrayType.kind !== "arrayType") {
+      throw new Error("ArrayExpr for non-array type");
+    }
+
+    const elementType = this.builder.getType(arrayType.type);
+    const alloc = this.builder.getAllocation(varName);
+
+    if (!alloc) {
+      throw new Error(`Array ${varName} not allocated`);
+    }
+
+    // Store each element
+    for (let i = 0; i < node.val.length; i++) {
+      const elemExpr = node.val[i]!;
+      const elemValue = ast.visit(elemExpr, this)!;
+
+      // GEP to get element pointer
+      const gepReg = this.builder.getelementptr(
+        alloc.type,
+        alloc.allocaRegister,
+        [
+          { value: "0", type: "i32" },
+          { value: i.toString(), type: "i32" }
+        ]
+      );
+
+      // Store element
+      this.builder.emitInstruction(`store ${elementType} ${elemValue.register}, ptr ${gepReg}`);
+    }
+  }
+
+  /**
+   * Initialize an array from a RepeatArrayExpr.
+   */
+  private initializeRepeatArray(varName: string, node: ast.RepeatArrayExpr, arrayType: Type): void {
+    if (arrayType.kind !== "arrayType") {
+      throw new Error("RepeatArrayExpr for non-array type");
+    }
+
+    const elementType = this.builder.getType(arrayType.type);
+    const alloc = this.builder.getAllocation(varName);
+
+    if (!alloc) {
+      throw new Error(`Array ${varName} not allocated`);
+    }
+
+    // Generate the value to repeat
+    const value = ast.visit(node.val, this)!;
+
+    // Get repeat count (semantic analyzer should have evaluated this to a constant)
+    const repeatCount = arrayType.size;
+
+    // Store the value in each element
+    for (let i = 0; i < repeatCount; i++) {
+      const gepReg = this.builder.getelementptr(
+        alloc.type,
+        alloc.allocaRegister,
+        [
+          { value: "0", type: "i32" },
+          { value: i.toString(), type: "i32" }
+        ]
+      );
+
+      this.builder.emitInstruction(`store ${elementType} ${value.register}, ptr ${gepReg}`);
+    }
   }
 
   /**

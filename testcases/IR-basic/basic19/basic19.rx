@@ -1,0 +1,17 @@
+fn main() {
+    let mut arr: [i32; 5] = [1, 2, 3, 4, 5];
+    let mut i: usize = 0;
+    let mut sum: i32 = 0;
+    while (i < 5) {
+        if (arr[i] % 2 == 0) {
+            i = i + 1;
+            continue;
+        }
+        sum = sum + arr[i];
+        if (sum > 10) {
+            break;
+        }
+        i = i + 1;
+    }
+    printlnInt(sum);
+}

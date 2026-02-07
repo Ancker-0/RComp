@@ -1,0 +1,6 @@
+fn main() {
+    let arr: [i32; 3] = [10, 20, 30];
+    printlnInt(arr[0]);
+    printlnInt(arr[1]);
+    printlnInt(arr[2]);
+}
