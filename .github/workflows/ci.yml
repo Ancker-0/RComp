@@ -96,3 +96,44 @@ jobs:
 
       - name: Test semantic-2
         run: npm run test:sema2
+
+  test-ir-basic:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Set up xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Install REIMU
+        run: |
+          git clone https://github.com/DarkSharpness/REIMU.git
+          cd REIMU && xmake f --toolchain=clang -y && xmake -y && xmake install --admin -o $HOME/.local
+
+      - name: Export paths
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Test IR-basic
+        run: npm run test:ir-basic

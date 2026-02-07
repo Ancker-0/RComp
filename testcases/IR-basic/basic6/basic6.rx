@@ -1,0 +1,8 @@
+fn main() {
+    let x: i32 = 100;
+    let y: i32 = 7;
+    let a: i32 = x + y * 3;
+    let b: i32 = (x - y) / 2;
+    let c: i32 = a - b;
+    printlnInt(c);
+}

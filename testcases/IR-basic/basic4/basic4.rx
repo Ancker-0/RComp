@@ -1,0 +1,12 @@
+fn main() {
+    let x: i32 = 5;
+    if (x > 3) {
+        if (x < 10) {
+            printlnInt(100);
+        } else {
+            printlnInt(200);
+        }
+    } else {
+        printlnInt(300);
+    }
+}

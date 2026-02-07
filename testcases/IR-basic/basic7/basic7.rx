@@ -1,0 +1,13 @@
+fn main() {
+    let x: i32 = 10;
+    let y: i32 = 20;
+    if (x == y) {
+        printlnInt(0);
+    } else {
+        if (x < y) {
+            printlnInt(1);
+        } else {
+            printlnInt(2);
+        }
+    }
+}

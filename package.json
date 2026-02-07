@@ -7,7 +7,8 @@
         "test": "jest --verbose",
         "start": "ts-node src/index.ts",
         "test:semantic": "ts-node src/test/semantic1-test.ts",
-        "test:sema2": "ts-node src/test/semantic1-test.ts -d semantic-2"
+        "test:sema2": "ts-node src/test/semantic1-test.ts -d semantic-2",
+        "test:ir-basic": "cd testcases/IR-basic && ./test_ir.bash"
     },
     "devDependencies": {
         "@types/jest": "^30.0.0",

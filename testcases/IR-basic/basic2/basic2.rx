@@ -1,0 +1,9 @@
+fn main() {
+    let x: i32 = 15;
+    let y: i32 = 10;
+    if (x > y) {
+        printlnInt(1);
+    } else {
+        printlnInt(0);
+    }
+}
