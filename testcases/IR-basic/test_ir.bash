@@ -36,6 +36,7 @@ get_clang() {
 }
 
 CLANG=$(get_clang)
+echo "Found clang executable $CLANG"
 
 # Check if reimu is available
 check_reimu() {
@@ -88,6 +89,7 @@ run_test() {
         if [ $? -ne 0 ]; then
             echo -e "${RED}FAIL${NC}"
             echo "  Error: Failed to compile LLVM IR to assembly"
+            $CLANG -S --target=riscv32-unknown-elf "${TEMPDIR}/output.ll" -o "${TEMPDIR}/output.s.source"
             return 1
         fi
 
