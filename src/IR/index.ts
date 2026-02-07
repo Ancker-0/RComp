@@ -175,6 +175,48 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
   }
 
   /**
+   * Check if an expression terminates (ends with break, continue, or return).
+   */
+  private exprTerminates(expr: ast.Expr | ast.Statement): boolean {
+    // Check if it's a break, continue, or return
+    if (expr.kind === ast.ASTType.BreakExpr ||
+        expr.kind === ast.ASTType.ContinueExpr ||
+        expr.kind === ast.ASTType.ReturnExpr) {
+      return true;
+    }
+
+    // Check if it's a block with a terminating statement
+    if (expr.kind === ast.ASTType.BlockExpr) {
+      const block = expr as ast.BlockExpr;
+      for (const stmt of block.statements) {
+        if (this.exprTerminates(stmt)) {
+          return true;
+        }
+      }
+      if (block.expr && this.exprTerminates(block.expr)) {
+        return true;
+      }
+      return false;
+    }
+
+    // Check if it's an if expression where both branches terminate
+    if (expr.kind === ast.ASTType.IfExpr) {
+      const ifExpr = expr as ast.IfExpr;
+      const thenTerminates = this.exprTerminates(ifExpr.then);
+      const elseTerminates = ifExpr.else ? this.exprTerminates(ifExpr.else) : false;
+      return thenTerminates && elseTerminates;
+    }
+
+    // Check if it's an expression statement with a terminating expression
+    if (expr.kind === ast.ASTType.ExprStatement) {
+      const exprStmt = expr as ast.ExprStatement;
+      return this.exprTerminates(exprStmt.expr);
+    }
+
+    return false;
+  }
+
+  /**
    * Visit a block expression.
    */
   onBlock(node: ast.BlockExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
@@ -222,6 +264,13 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
    * Visit a binary expression.
    */
   onBinaryExpr(node: ast.BinaryExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue {
+    // Check if this is an assignment operator
+    const assignmentOps: Operator[] = ["=", "+=", "-=", "*=", "/=", "%="];
+
+    if (assignmentOps.includes(node.operator)) {
+      return this.handleAssignment(node);
+    }
+
     // Generate left and right operands
     const left = ast.visit(node.operand[0], this)!;
     const right = ast.visit(node.operand[1], this)!;
@@ -240,6 +289,43 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       const resultReg = this.builder.binop(node.operator, left.register, right.register, resultType);
       return { register: resultReg, type: resultType, isLValue: false };
     }
+  }
+
+  /**
+   * Handle assignment expressions.
+   */
+  private handleAssignment(node: ast.BinaryExpr): LLVMValue {
+    const leftExpr = node.operand[0];
+    const rightExpr = node.operand[1];
+    const op = node.operator;
+
+    // Left operand must be an lvalue (PathExpr for variables)
+    if (leftExpr.kind !== ast.ASTType.PathExpr) {
+      throw new Error("Invalid assignment target: only variables supported");
+    }
+
+    // Generate right-hand side value
+    let value = ast.visit(rightExpr, this)!;
+
+    // For compound assignments, we need to load the current value first
+    if (op !== "=") {
+      const varName = leftExpr.segs[0]!;
+      const currentValue = this.builder.load(varName);
+
+      // Apply the operation
+      const baseOp = op.substring(0, op.length - 1) as Operator;
+      value = {
+        register: this.builder.binop(baseOp, currentValue.register, value.register, value.type),
+        type: value.type,
+        isLValue: false
+      };
+    }
+
+    // Store the value
+    const varName = leftExpr.segs[0]!;
+    this.builder.store(value.register, value.type, varName);
+
+    return value;
   }
 
   /**
@@ -378,7 +464,10 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
     // Then block
     this.builder.label(thenLabel);
     const thenValue = ast.visit(node.then, this);
-    this.builder.br(endLabel);
+    // Only branch to end if the then block doesn't already terminate
+    if (!this.exprTerminates(node.then)) {
+      this.builder.br(endLabel);
+    }
 
     // Else block (if present)
     let elseValue: LLVMValue | null = null;
@@ -386,14 +475,21 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       this.builder.label(elseLabel);
       const visitedElse = ast.visit(node.else, this);
       elseValue = visitedElse ?? null;
-      this.builder.br(endLabel);
+      // Only branch to end if the else block doesn't already terminate
+      if (!this.exprTerminates(node.else)) {
+        this.builder.br(endLabel);
+      }
     } else {
       this.builder.label(elseLabel);
       this.builder.br(endLabel);
     }
 
-    // Merge block
-    this.builder.label(endLabel);
+    // Merge block (only if we haven't terminated)
+    const thenTerminates = this.exprTerminates(node.then);
+    const elseTerminates = node.else ? this.exprTerminates(node.else) : false;
+    if (!thenTerminates || !elseTerminates) {
+      this.builder.label(endLabel);
+    }
 
     // Handle if-value (if both branches produce values)
     if (thenValue && elseValue && thenValue.type === elseValue.type) {
@@ -404,6 +500,75 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       return { register: phiReg, type: thenValue.type, isLValue: false };
     }
 
+    return null;
+  }
+
+  /**
+   * Visit a while expression.
+   */
+  onWhile(node: ast.WhileExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    // Create labels
+    const condLabel = this.builder.freshLabel("while.cond");
+    const bodyLabel = this.builder.freshLabel("while.body");
+    const endLabel = this.builder.freshLabel("while.end");
+
+    // Push loop context onto stack
+    this.loopStack.push({
+      breakLabel: endLabel,
+      continueLabel: condLabel
+    });
+
+    // Entry: branch to condition
+    this.builder.br(condLabel);
+
+    // Condition block
+    this.builder.label(condLabel);
+    const cond = ast.visit(node.cond, this)!;
+    this.builder.condBr(cond.register, bodyLabel, endLabel);
+
+    // Body block
+    this.builder.label(bodyLabel);
+    ast.visit(node.body, this);
+    this.builder.br(condLabel);
+
+    // End block
+    this.builder.label(endLabel);
+
+    // Pop loop context
+    this.loopStack.pop();
+
+    return null;
+  }
+
+  /**
+   * Visit a break expression.
+   */
+  onBreakExpr(node: ast.BreakExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    if (this.loopStack.length === 0) {
+      throw new Error("break statement outside of loop");
+    }
+
+    const breakLabel = this.loopStack[this.loopStack.length - 1]!.breakLabel;
+
+    // Note: while loops ignore break values (unlike loop expressions)
+    if (node.expr) {
+      ast.visit(node.expr, this);
+    }
+
+    this.builder.br(breakLabel);
+    return null;
+  }
+
+  /**
+   * Visit a continue expression.
+   */
+  onContinueExpr(_node: ast.ContinueExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    if (this.loopStack.length === 0) {
+      throw new Error("continue statement outside of loop");
+    }
+
+    const continueLabel = this.loopStack[this.loopStack.length - 1]!.continueLabel;
+    this.builder.br(continueLabel);
     return null;
   }
 

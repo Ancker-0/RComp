@@ -311,6 +311,23 @@ export class LLVMIRBuilder {
   }
 
   /**
+   * Generate a getelementptr instruction.
+   */
+  getelementptr(ptrType: string, basePtr: string, indices: { value: string; type: string }[]): string {
+    const resultReg = this.freshRegister();
+    const indicesStr = indices.map(i => `${i.type} ${i.value}`).join(", ");
+    this.emitInstruction(`${resultReg} = getelementptr ${ptrType}, ptr ${basePtr}, ${indicesStr}`);
+    return resultReg;
+  }
+
+  /**
+   * Get variable allocation info.
+   */
+  getAllocation(name: string): VariableAllocation | undefined {
+    return this.variableAllocations.get(name);
+  }
+
+  /**
    * Get the generated LLVM IR as a string.
    */
   getIR(): string {

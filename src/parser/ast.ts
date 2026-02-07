@@ -363,6 +363,7 @@ export interface Visitor<R = void> {
     onExprStatement?(node: NodeByKind<ASTType.ExprStatement>, self: Visitor<R>): R
     onReturnExpr?(node: NodeByKind<ASTType.ReturnExpr>, self: Visitor<R>): R
     onBreakExpr?(node: NodeByKind<ASTType.BreakExpr>, self: Visitor<R>): R
+    onContinueExpr?(node: NodeByKind<ASTType.ContinueExpr>, self: Visitor<R>): R
     onCastExpr?(node: NodeByKind<ASTType.CastExpr>, self: Visitor<R>): R
     onStructExpr?(node: NodeByKind<ASTType.StructExpr>, self: Visitor<R>): R
     onFieldExpr?(node: NodeByKind<ASTType.FieldExpr>, self: Visitor<R>): R
@@ -412,6 +413,8 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return (visitor.onReturnExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.BreakExpr:
       return (visitor.onBreakExpr || visitor.default)?.call?.(visitor, node, visitor)
+    case ASTType.ContinueExpr:
+      return (visitor.onContinueExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.CastExpr:
       return (visitor.onCastExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.StructExpr:
