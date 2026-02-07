@@ -334,5 +334,6 @@ export class LLVMIRBuilder {
   clearAllocations(): void {
     this.variableAllocations.clear();
     this.allocaCounter = 0;  // Reset counter for new function
+    this.registerCounter = 0;  // Reset counter for new function
   }
 }
