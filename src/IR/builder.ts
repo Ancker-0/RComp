@@ -1,5 +1,6 @@
 import type { Type } from "../semantic/info";
 import type { Operator } from "../lexer/token";
+import type { UUID } from "../semantic/util";
 
 /**
  * LLVMValue represents a value generated during code generation.
@@ -28,6 +29,7 @@ export class LLVMIRBuilder {
   private labelCounter = 0;
   private allocaCounter = 0;  // For generating unique alloca register names
   private variableAllocations = new Map<string, VariableAllocation>();
+  private structTypes = new Map<UUID, { name: string; llvmType: string }>();  // Track defined struct types by UUID
 
   /**
    * Get the LLVM type string for a semantic type.
@@ -60,6 +62,11 @@ export class LLVMIRBuilder {
         const elementType = this.getType(type.type);
         return `[${type.size} x ${elementType}]`;
       case "structType":
+        // For defined struct types, use the defined type name
+        if (this.structTypes.has(type.UUID)) {
+          return this.structTypes.get(type.UUID)!.llvmType;
+        }
+        // Fallback to anonymous struct
         const fields = Array.from(type.fields.values())
           .map((t) => this.getType(t))
           .join(", ");
@@ -71,6 +78,19 @@ export class LLVMIRBuilder {
       default:
         throw new Error(`Unsupported type kind: ${(type as any).kind}`);
     }
+  }
+
+  /**
+   * Define a struct type in LLVM IR.
+   */
+  defineStruct(uuid: UUID, name: string, fields: { name: string; type: string }[]): void {
+    if (this.structTypes.has(uuid)) {
+      return;  // Already defined
+    }
+    const fieldsStr = fields.map(f => f.type).join(", ");
+    const llvmType = `%${name}`;
+    this.emitInstruction(`${llvmType} = type { ${fieldsStr} }`);
+    this.structTypes.set(uuid, { name, llvmType });
   }
 
   /**
@@ -277,9 +297,10 @@ export class LLVMIRBuilder {
   /**
    * Generate a return instruction.
    */
-  ret(value?: string): void {
+  ret(value?: string, type?: string): void {
     if (value) {
-      this.emitInstruction(`ret i32 ${value}`);
+      const retType = type || "i32";
+      this.emitInstruction(`ret ${retType} ${value}`);
     } else {
       this.emitInstruction("ret void");
     }

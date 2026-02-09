@@ -1,4 +1,4 @@
-import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType, isIntegral, FunctionType, EnumType } from "./info";
+import { SymbolTableImpl, SemanticError, VariableSymbol, FunctionSymbol, Type, i32Type, boolType, unitType, areTypesEqual, StructType, usizeType, isNever, integerType, isUnit, EndTAlgebra, EndTRes, EndTypeF, neverType, isStruct, StringType, isIntegral, FunctionType, EnumType, RefType } from "./info";
 import { genUUID } from "./util";
 import * as ast from "../parser/ast";
 import { inferType } from "./type-infer";
@@ -245,6 +245,9 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         throw error;
       }
     }
+
+    // 记录结构体类型供代码生成使用
+    this.nodeTypes.set(node, structType);
   }
 
   private registerEnum(node: ast.EnumItem): void {
@@ -1094,6 +1097,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           type: typeSymbol,
           value: undefined
         };
+        // Also record in nodeTypes for IR code generation
+        this.nodeTypes.set(node, typeSymbol);
 
         // TODO: Type-check that all required fields are present
         // TODO: Type-check that field values match field types
@@ -1194,6 +1199,18 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         break
       default:
     }
+    // Visit the operand to ensure child nodes are processed
+    // This ensures nodeTypes is populated for PathExpr children
+    this.visit(node.operand, self);
+  }
+  onBorrowExpr(node: ast.NodeByKind<ast.ASTType.BorrowExpr>, self: ast.Visitor<void>): void {
+    // Record the type of the borrow expression in nodeTypes
+    const borrowType: RefType = {
+      kind: "refType",
+      under: this.inferExprType(node.expr),
+      mutable: node.mutable,
+    };
+    this.nodeTypes.set(node, borrowType);
   }
   onBinaryExpr(node: ast.NodeByKind<ast.ASTType.BinaryExpr>, self: ast.Visitor<void>): void {
     // 先处理子节点，确保类型信息已经推断

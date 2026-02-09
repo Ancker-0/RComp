@@ -1,0 +1,10 @@
+fn take_ref(x: &i32) -> i32 {
+    *x
+}
+
+fn main() {
+    let value: i32 = 42;
+    let ref_value: &i32 = &value;
+    printlnInt(*ref_value);
+    printlnInt(take_ref(&value));
+}

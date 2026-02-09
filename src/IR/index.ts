@@ -45,9 +45,23 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
    * Visit a crate (module root).
    */
   onCrate(node: ast.Crate, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
-    // Emit global constants first
+    // Emit struct type definitions first
+    for (const item of node.items) {
+      if (item.kind === ast.ASTType.StructItem) {
+        ast.visit(item, this);
+      }
+    }
+
+    // Emit global constants
     for (const item of node.items) {
       if (item.kind === ast.ASTType.ConstItem) {
+        ast.visit(item, this);
+      }
+    }
+
+    // Emit impl blocks (impl functions)
+    for (const item of node.items) {
+      if (item.kind === ast.ASTType.InherentImpl) {
         ast.visit(item, this);
       }
     }
@@ -93,12 +107,30 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       return { name: paramName, type: paramType };
     });
 
+    // Handle self parameter for impl methods
+    let selfParamType: string | undefined;
+    if (funcSym.self) {
+      // For impl methods, self is always passed as a pointer (ptr)
+      // This works for both &self and &mut self
+      selfParamType = "ptr";
+      // Add self as the first parameter
+      params.unshift({ name: "self", type: selfParamType });
+    }
+
     // Start function definition
     this.builder.define(this.currentReturnType, node.name, params);
     this.builder.label("entry");
 
     // Clear allocations from previous function
     this.builder.clearAllocations();
+
+    // Allocate space for self parameter first (for impl methods)
+    if (funcSym.self && selfParamType) {
+      // Allocate stack space for self
+      this.builder.alloca("self", selfParamType);
+      // Store the self parameter value
+      this.builder.store("%self", selfParamType, "self");
+    }
 
     // Allocate space for local variables (parameters first)
     for (const param of node.params) {
@@ -114,15 +146,43 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
 
     // Generate function body
     if (node.body) {
-      ast.visit(node.body, this);
+      const blockResult = ast.visit(node.body, this);
 
-      // Add implicit return if none exists
+      // Handle implicit return (last expression without semicolon)
       if (!this.blockHasReturn(node.body)) {
-        if (this.currentReturnType === "void") {
+        if (blockResult && blockResult.register) {
+          // The block returned a value (implicit return)
+          if (this.currentReturnType === "void") {
+            this.builder.ret();
+          } else {
+            // For lvalues (like struct expressions), load the value before returning
+            if (blockResult.isLValue) {
+              const loadedReg = this.builder.freshRegister();
+              this.builder.emitInstruction(`${loadedReg} = load ${blockResult.type}, ptr ${blockResult.register}`);
+              this.builder.ret(loadedReg, blockResult.type);
+            } else {
+              this.builder.ret(blockResult.register, blockResult.type);
+            }
+          }
+        } else if (node.body.expr) {
+          // Fallback: The block has an expression but didn't return a value
+          // This shouldn't happen, but handle it gracefully
+          if (this.currentReturnType === "void") {
+            this.builder.ret();
+          } else if (funcSym.isMain) {
+            this.builder.ret("0");
+          } else {
+            this.builder.ret("undef");
+          }
+        } else if (this.currentReturnType === "void") {
           this.builder.ret();
         } else if (funcSym.isMain) {
           // main 函数隐式返回 0
           this.builder.ret("0");
+        } else {
+          // Non-void function without return - this might be an error
+          // For now, add a ret instruction to avoid LLVM errors
+          this.builder.ret("undef");
         }
       }
     } else if (this.currentReturnType !== "void") {
@@ -231,6 +291,8 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       const value = ast.visit(node.expr, this);
       if (value) {
         blockValue = value;
+        // For lvalues, we need to load the value for use in expressions
+        // But keep it as lvalue so the caller can decide what to do
       }
     }
 
@@ -318,9 +380,11 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
     const rightExpr = node.operand[1];
     const op = node.operator;
 
-    // Left operand must be an lvalue (PathExpr or IndexExpr)
-    if (leftExpr.kind !== ast.ASTType.PathExpr && leftExpr.kind !== ast.ASTType.IndexExpr) {
-      throw new Error("Invalid assignment target: only variables and array indexing supported");
+    // Left operand must be an lvalue (PathExpr, IndexExpr, or FieldExpr)
+    if (leftExpr.kind !== ast.ASTType.PathExpr &&
+        leftExpr.kind !== ast.ASTType.IndexExpr &&
+        leftExpr.kind !== ast.ASTType.FieldExpr) {
+      throw new Error("Invalid assignment target: only variables, array indexing, and field access supported");
     }
 
     // Generate right-hand side value
@@ -336,6 +400,8 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
         currentValue = { register: loaded.register, type: loaded.type, isLValue: false };
       } else if (leftExpr.kind === ast.ASTType.IndexExpr) {
         currentValue = this.handleIndexLoad(leftExpr);
+      } else if (leftExpr.kind === ast.ASTType.FieldExpr) {
+        currentValue = this.onFieldExpr(leftExpr, this as any);
       } else {
         throw new Error("Invalid assignment target");
       }
@@ -355,6 +421,8 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       this.builder.store(value.register, value.type, varName);
     } else if (leftExpr.kind === ast.ASTType.IndexExpr) {
       this.handleIndexStore(leftExpr, value);
+    } else if (leftExpr.kind === ast.ASTType.FieldExpr) {
+      this.handleFieldStore(leftExpr, value);
     }
 
     return value;
@@ -411,10 +479,149 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
   }
 
   /**
+   * Handle storing a value to a struct field.
+   */
+  private handleFieldStore(node: ast.FieldExpr, value: LLVMValue): void {
+    const objectType = this.analyzer.getNodeType(node.object);
+    if (!objectType || objectType.kind !== "structType") {
+      throw new Error("Field access requires struct type");
+    }
+
+    // Find the field index
+    const fieldNames = Array.from(objectType.fields.keys());
+    const fieldIndex = fieldNames.indexOf(node.field);
+    if (fieldIndex === -1) {
+      throw new Error(`Field ${node.field} not found in struct`);
+    }
+
+    // Get the field type
+    const fieldType = objectType.fields.get(node.field);
+    if (!fieldType) {
+      throw new Error(`Field ${node.field} has no type`);
+    }
+    const fieldLlvmType = this.builder.getType(fieldType);
+
+    // Get the object's address (not value!)
+    let objPtr: string;
+    let objLlvmType: string;
+
+    if (node.object.kind === ast.ASTType.PathExpr) {
+      // For simple variable access, use the alloca address directly
+      const varName = (node.object as ast.PathExpr).segs[0]!;
+      const alloc = this.builder.getAllocation(varName);
+      if (!alloc) {
+        throw new Error(`Variable ${varName} not allocated`);
+      }
+      objPtr = alloc.allocaRegister;
+      objLlvmType = alloc.type;
+
+      // Special case for self parameter: self is a pointer stored in an alloca
+      // We need to load the pointer before doing GEP
+      if (varName === "self" && alloc.type === "ptr") {
+        const loadedPtr = this.builder.freshRegister();
+        this.builder.emitInstruction(`${loadedPtr} = load ptr, ptr ${objPtr}`);
+        objPtr = loadedPtr;
+        // objLlvmType should be the struct type for GEP
+        objLlvmType = this.builder.getType(objectType);
+      }
+    } else {
+      // For complex expressions (e.g., nested field access), use the result
+      const object = ast.visit(node.object, this)!;
+      objPtr = object.register;
+      objLlvmType = object.type;
+    }
+
+    // GEP to get field address
+    const gepReg = this.builder.getelementptr(
+      objLlvmType,
+      objPtr,
+      [
+        { value: "0", type: "i32" },
+        { value: fieldIndex.toString(), type: "i32" }
+      ]
+    );
+
+    // Store field value
+    this.builder.emitInstruction(`store ${fieldLlvmType} ${value.register}, ptr ${gepReg}`);
+  }
+
+  /**
    * Visit a unary expression.
    */
   onUnaryExpr(node: ast.UnaryExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue {
     const operand = ast.visit(node.operand, this)!;
+
+    // Handle dereference (*) specially - need to get the pointed-to type
+    if (node.operator === "*") {
+      // Get the type of the operand
+      let operandType = this.analyzer.getNodeType(node.operand);
+
+      // Fallback 1: try to get type from symbol table for parameters
+      if (!operandType && node.operand.kind === ast.ASTType.PathExpr) {
+        const varName = (node.operand as ast.PathExpr).segs[0]!;
+        const varSymbol = this.symbolTable.lookupVariable(varName);
+        if (varSymbol) {
+          operandType = varSymbol.type;
+        }
+      }
+
+      // Fallback 2: try to get type from current function's parameters
+      if (!operandType && node.operand.kind === ast.ASTType.PathExpr && this.currentFunction) {
+        const varName = (node.operand as ast.PathExpr).segs[0]!;
+        const funcSym = this.symbolTable.lookupFunction(this.currentFunction.name);
+        if (funcSym) {
+          // Check if it's the self parameter (for impl methods)
+          if (varName === "self" && funcSym.self) {
+            // Self parameter: construct reference type to struct
+            // For now, just skip - will be handled by other fallbacks or error
+          } else {
+            // Check regular parameters
+            for (let i = 0; i < this.currentFunction.params.length; i++) {
+              const param = this.currentFunction.params[i];
+              if (param && param.pattern.kind === ast.ASTType.IdentifierPattern) {
+                const paramName = (param.pattern as ast.IdentifierPattern).name;
+                if (paramName === varName) {
+                  // Get the parameter type from funcSym.params
+                  // Note: funcSym.params doesn't include self, so index is i
+                  if (i < funcSym.params.length) {
+                    operandType = funcSym.params[i];
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!operandType) {
+        // Debug: print what we're looking for
+        console.error(`DEBUG: Type not found for dereference operand`);
+        console.error(`  node.operand.kind: ${ast.ASTType[node.operand.kind]}`);
+        if (node.operand.kind === ast.ASTType.PathExpr) {
+          const varName = (node.operand as ast.PathExpr).segs[0]!;
+          console.error(`  varName: ${varName}`);
+          console.error(`  currentFunction: ${this.currentFunction?.name}`);
+        }
+        throw new Error("Type not found for dereference operand");
+      }
+
+      // For reference types, get the underlying type
+      let loadedType: string;
+      if (operandType.kind === "refType") {
+        loadedType = this.builder.getType(operandType.under);
+      } else if (operandType.kind === "primitiveType" && operandType.name === "usize") {
+        // Raw pointer (usize) - assume i32 for now
+        loadedType = "i32";
+      } else {
+        throw new Error(`Cannot dereference non-reference type: ${operandType.kind}`);
+      }
+
+      const resultReg = this.builder.freshRegister();
+      this.builder.emitInstruction(`${resultReg} = load ${loadedType}, ptr ${operand.register}`);
+      return { register: resultReg, type: loadedType, isLValue: false };
+    }
+
     const resultReg = this.builder.unaryOp(node.operator, operand.register, operand.type);
     return { register: resultReg, type: operand.type, isLValue: false };
   }
@@ -430,12 +637,34 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
     const varName = node.segs[0]!;
 
     // Get type from semantic analysis
-    const varType = this.analyzer.getNodeType(node);
+    let varType = this.analyzer.getNodeType(node);
+    let llvmType: string | undefined;
+
+    // Fallback: look up in symbol table (for function parameters)
     if (!varType) {
+      const varSymbol = this.symbolTable.lookupVariable(varName);
+      if (varSymbol) {
+        varType = varSymbol.type;
+      }
+    }
+
+    // Another fallback: check allocation to get type (for function parameters)
+    if (!varType) {
+      const alloc = this.builder.getAllocation(varName);
+      if (alloc) {
+        // The allocation has the type in the form "ptr" or "i32" etc.
+        // We need to infer the semantic type from the LLVM type
+        llvmType = alloc.type;
+      }
+    }
+
+    if (!varType && !llvmType) {
       throw new Error(`Type not found for variable: ${varName}`);
     }
 
-    const llvmType = this.builder.getType(varType);
+    if (!llvmType) {
+      llvmType = this.builder.getType(varType!);
+    }
 
     // Load from stack allocation
     const loaded = this.builder.load(varName);
@@ -494,20 +723,154 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
   onCallExpr(node: ast.CallExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
     // Get function name
     let funcName: string;
+    let argValues = node.param.map((arg) => ast.visit(arg, this)!);
+
+    let funcSym: FunctionSymbol | undefined
+    // Check for method call or associated function syntax (Type::method or object.method)
     if (node.value.kind === ast.ASTType.PathExpr) {
-      funcName = (node.value as ast.PathExpr).segs.join("::");
+      const pathExpr = node.value as ast.PathExpr;
+      const segs = pathExpr.segs;
+
+      if (segs.length === 2) {
+        // This could be:
+        // 1. Associated function: Type::method(args)
+        // 2. Method call on variable: obj.method(args)
+
+        const firstSeg = segs[0]!;
+        const secondSeg = segs[1]!;
+
+        // First, try to look up as a variable (for method calls)
+        const objSymbol = this.symbolTable.lookupVariable(firstSeg);
+
+        if (objSymbol) {
+          // Method call on object (e.g., stack.push())
+          const methodName = secondSeg;
+          const objVarName = firstSeg;
+
+          const objType = objSymbol.type;
+          if (objType.kind !== "structType") {
+            throw new Error(`Method call requires struct type, got ${objType.kind}`);
+          }
+
+          // Find the method in the struct
+          if (!objType.methods || !objType.methods.has(methodName)) {
+            throw new Error(`Method ${methodName} not found in struct ${objType.name}`);
+          }
+
+          funcSym = objType.methods.get(methodName)!;
+          funcName = `${objType.name}_${methodName}`;
+
+          // Prepend the object as the first argument (self)
+          const firstParam = funcSym.params[0];
+          if (!firstParam) {
+            throw new Error(`Method ${methodName} has no parameters`);
+          }
+
+          const objValue: LLVMValue = {
+            register: `%${objVarName}`,
+            type: this.builder.getType(firstParam),
+            isLValue: false
+          };
+
+          argValues = [objValue, ...argValues];
+        } else {
+          // Associated function call (e.g., Counter::new())
+          // Look up the type
+          const structType = this.symbolTable.lookupType(firstSeg);
+          if (!structType || structType.kind !== "structType") {
+            throw new Error(`Type ${firstSeg} not found or is not a struct`);
+          }
+
+          const methodName = secondSeg;
+
+          // Find the method in the struct
+          if (!structType.methods || !structType.methods.has(methodName)) {
+            throw new Error(`Method ${methodName} not found in struct ${structType.name}`);
+          }
+
+          funcSym = structType.methods.get(methodName)!;
+          funcName = `${structType.name}_${methodName}`;
+        }
+      } else if (segs.length === 1) {
+        // Regular function call
+        funcName = segs[0]!;
+        funcSym = this.symbolTable.lookupFunction(funcName);
+        if (!funcSym) {
+          throw new Error(`Undefined function: ${funcName}`);
+        }
+      } else {
+        throw new Error("Complex function calls not supported in MVP");
+      }
+    } else if (node.value.kind === ast.ASTType.FieldExpr) {
+      // Method call using field access syntax (e.g., c.increment())
+      const fieldExpr = node.value as ast.FieldExpr;
+      const methodName = fieldExpr.field;
+
+      // Get the object type
+      const objectType = this.analyzer.getNodeType(fieldExpr.object);
+      if (!objectType || objectType.kind !== "structType") {
+        throw new Error("Method call requires struct type");
+      }
+
+      // Find the method in the struct
+      if (!objectType.methods || !objectType.methods.has(methodName)) {
+        throw new Error(`Method ${methodName} not found in struct ${objectType.name}`);
+      }
+
+      funcSym = objectType.methods.get(methodName)!;
+      funcName = `${objectType.name}_${methodName}`;
+
+      // Get the object's address (not value!)
+      let objPtr: string;
+      let objLlvmType: string;
+
+      if (fieldExpr.object.kind === ast.ASTType.PathExpr) {
+        // For simple variable access, use the alloca address directly
+        const varName = (fieldExpr.object as ast.PathExpr).segs[0]!;
+        const alloc = this.builder.getAllocation(varName);
+        if (!alloc) {
+          throw new Error(`Variable ${varName} not allocated`);
+        }
+        objPtr = alloc.allocaRegister;
+        objLlvmType = alloc.type;
+      } else {
+        // For complex expressions (e.g., nested field access), use the result
+        const object = ast.visit(fieldExpr.object, this)!;
+        objPtr = object.register;
+        objLlvmType = object.type;
+      }
+
+      // Construct the self parameter type
+      // Methods with self have the self parameter info in funcSym.self
+      let selfType: Type;
+      if (funcSym.self) {
+        // Self parameter: construct reference type based on mutability
+        selfType = {
+          kind: "refType",
+          mutable: funcSym.self.mutable,
+          under: objectType
+        };
+      } else {
+        // No self parameter (shouldn't happen for methods called via field access)
+        throw new Error(`Method ${methodName} has no self parameter`);
+      }
+
+      const objValue: LLVMValue = {
+        register: objPtr,
+        type: this.builder.getType(selfType),
+        isLValue: false
+      };
+
+      argValues = [objValue, ...argValues];
     } else {
-      throw new Error("Complex function calls not supported in MVP");
+      throw new Error(`Complex function calls not supported in MVP: node.value.kind = ${ast.ASTType[node.value.kind]}`);
     }
 
-    // Look up function symbol
-    const funcSym = this.symbolTable.lookupFunction(funcName);
     if (!funcSym) {
       throw new Error(`Undefined function: ${funcName}`);
     }
 
-    // Generate arguments
-    const argValues = node.param.map((arg) => ast.visit(arg, this)!);
+    // Build arguments list
     const args = argValues.map((v) => ({ value: v.register, type: v.type }));
 
     // Get return type
@@ -554,6 +917,9 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
         this.initializeArray(varName, node.expr as ast.ArrayExpr, patternType);
       } else if (node.expr.kind === ast.ASTType.RepeatArrayExpr) {
         this.initializeRepeatArray(varName, node.expr as ast.RepeatArrayExpr, patternType);
+      } else if (node.expr.kind === ast.ASTType.StructExpr) {
+        // For struct initialization, initialize directly to variable's allocation
+        this.initializeStruct(varName, node.expr as ast.StructExpr, patternType);
       } else {
         // Regular variable initialization
         const initValue = ast.visit(node.expr, this)!;
@@ -632,6 +998,54 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       );
 
       this.builder.emitInstruction(`store ${elementType} ${value.register}, ptr ${gepReg}`);
+    }
+  }
+
+  /**
+   * Initialize a struct from a StructExpr.
+   */
+  private initializeStruct(varName: string, node: ast.StructExpr, structType: Type): void {
+    if (structType.kind !== "structType") {
+      throw new Error("StructExpr for non-struct type");
+    }
+
+    const alloc = this.builder.getAllocation(varName);
+    if (!alloc) {
+      throw new Error(`Struct ${varName} not allocated`);
+    }
+
+    const llvmType = alloc.type;
+
+    // Initialize each field
+    for (const field of node.fields) {
+      const fieldType = structType.fields.get(field.name);
+      if (!fieldType) {
+        throw new Error(`Field ${field.name} not found in struct`);
+      }
+
+      // Generate the field value
+      const value = ast.visit(field.value, this)!;
+      const fieldLlvmType = this.builder.getType(fieldType);
+
+      // Get field index (GEP needs sequential indices starting from 0)
+      const fieldNames = Array.from(structType.fields.keys());
+      const fieldIndex = fieldNames.indexOf(field.name);
+      if (fieldIndex === -1) {
+        throw new Error(`Field ${field.name} not found`);
+      }
+
+      // GEP to get field address
+      const gepReg = this.builder.getelementptr(
+        llvmType,
+        alloc.allocaRegister,
+        [
+          { value: "0", type: "i32" },
+          { value: fieldIndex.toString(), type: "i32" }
+        ]
+      );
+
+      // Store field value
+      this.builder.emitInstruction(`store ${fieldLlvmType} ${value.register}, ptr ${gepReg}`);
     }
   }
 
@@ -798,6 +1212,155 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
   }
 
   /**
+   * Visit a struct declaration.
+   */
+  onStruct(node: ast.StructItem, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    // Get the struct type from semantic analysis
+    const structType = this.analyzer.getNodeType(node);
+    if (!structType || structType.kind !== "structType") {
+      throw new Error(`Struct type not found for ${node.name}`);
+    }
+
+    // Build field list for LLVM struct definition from the struct type
+    const fields = node.fields.map(field => {
+      const fieldType = structType.fields.get(field.name);
+      if (!fieldType) {
+        throw new Error(`Type not found for field ${field.name}`);
+      }
+      const llvmType = this.builder.getType(fieldType);
+      return { name: field.name, type: llvmType };
+    });
+
+    // Define the struct type in LLVM IR
+    this.builder.defineStruct(structType.UUID, node.name, fields);
+
+    return null;
+  }
+
+  /**
+   * Visit a struct expression (struct literal initialization).
+   */
+  onStructExpr(node: ast.StructExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    // Get the struct type
+    const structType = this.analyzer.getNodeType(node);
+    if (!structType || structType.kind !== "structType") {
+      throw new Error("Struct expression must have struct type");
+    }
+
+    // Allocate stack space for the struct
+    const llvmType = this.builder.getType(structType);
+    const tempName = `struct.${this.builder.freshRegister()}`;
+    const allocaReg = this.builder.freshRegister();
+    this.builder.emitInstruction(`${allocaReg} = alloca ${llvmType}`);
+
+    // Initialize each field
+    for (const field of node.fields) {
+      const fieldType = structType.fields.get(field.name);
+      if (!fieldType) {
+        throw new Error(`Field ${field.name} not found in struct`);
+      }
+
+      // Generate the field value
+      const value = ast.visit(field.value, this)!;
+      const fieldLlvmType = this.builder.getType(fieldType);
+
+      // Get field index (GEP needs sequential indices starting from 0)
+      const fieldNames = Array.from(structType.fields.keys());
+      const fieldIndex = fieldNames.indexOf(field.name);
+      if (fieldIndex === -1) {
+        throw new Error(`Field ${field.name} not found`);
+      }
+
+      // GEP to get field address
+      const gepReg = this.builder.getelementptr(
+        llvmType,
+        allocaReg,
+        [
+          { value: "0", type: "i32" },
+          { value: fieldIndex.toString(), type: "i32" }
+        ]
+      );
+
+      // Store field value
+      this.builder.emitInstruction(`store ${fieldLlvmType} ${value.register}, ptr ${gepReg}`);
+    }
+
+    // Return the struct value (as a pointer to the allocated memory)
+    return { register: allocaReg, type: llvmType, isLValue: true };
+  }
+
+  /**
+   * Visit a field access expression (object.field).
+   */
+  onFieldExpr(node: ast.FieldExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue {
+    // Get the object type
+    const objectType = this.analyzer.getNodeType(node.object);
+    if (!objectType || objectType.kind !== "structType") {
+      throw new Error("Field access requires struct type");
+    }
+
+    // Find the field index
+    const fieldNames = Array.from(objectType.fields.keys());
+    const fieldIndex = fieldNames.indexOf(node.field);
+    if (fieldIndex === -1) {
+      throw new Error(`Field ${node.field} not found in struct`);
+    }
+
+    // Get the field type
+    const fieldType = objectType.fields.get(node.field);
+    if (!fieldType) {
+      throw new Error(`Field ${node.field} has no type`);
+    }
+    const fieldLlvmType = this.builder.getType(fieldType);
+
+    // Get the object's address (not value!)
+    let objPtr: string;
+    let objLlvmType: string;
+
+    if (node.object.kind === ast.ASTType.PathExpr) {
+      // For simple variable access, use the alloca address directly
+      const varName = (node.object as ast.PathExpr).segs[0]!;
+      const alloc = this.builder.getAllocation(varName);
+      if (!alloc) {
+        throw new Error(`Variable ${varName} not allocated`);
+      }
+      objPtr = alloc.allocaRegister;
+      objLlvmType = alloc.type;
+
+      // Special case for self parameter: self is a pointer stored in an alloca
+      // We need to load the pointer before doing GEP
+      if (varName === "self" && alloc.type === "ptr") {
+        const loadedPtr = this.builder.freshRegister();
+        this.builder.emitInstruction(`${loadedPtr} = load ptr, ptr ${objPtr}`);
+        objPtr = loadedPtr;
+        // objLlvmType should be the struct type for GEP
+        objLlvmType = this.builder.getType(objectType);
+      }
+    } else {
+      // For complex expressions (e.g., nested field access), use the result
+      const object = ast.visit(node.object, this)!;
+      objPtr = object.register;
+      objLlvmType = object.type;
+    }
+
+    // GEP to get field address
+    const gepReg = this.builder.getelementptr(
+      objLlvmType,
+      objPtr,
+      [
+        { value: "0", type: "i32" },
+        { value: fieldIndex.toString(), type: "i32" }
+      ]
+    );
+
+    // Load the field value
+    const loadedReg = this.builder.freshRegister();
+    this.builder.emitInstruction(`${loadedReg} = load ${fieldLlvmType}, ptr ${gepReg}`);
+
+    return { register: loadedReg, type: fieldLlvmType, isLValue: false };
+  }
+
+  /**
    * Visit const item (global constant).
    */
   onConst(node: ast.ConstItem, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
@@ -825,6 +1388,187 @@ export class CodeGenerator implements ast.Visitor<LLVMValue | null> {
       throw new Error("Only literal constants supported in MVP");
     }
     return null;
+  }
+
+  /**
+   * Visit an impl block.
+   */
+  onImpl(node: ast.InherentImpl, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    // Get the struct name
+    const structName = node.type.value;
+
+    // Look up the struct type
+    const structType = this.symbolTable.lookupType(structName);
+    if (!structType || structType.kind !== "structType") {
+      throw new Error(`Impl block for non-struct type: ${structName}`);
+    }
+
+    // Visit each function in the impl block
+    // We need to rename them to StructName_method_name
+    for (const func of node.fn) {
+      const originalName = func.name;
+      const mangledName = `${structName}_${originalName}`;
+
+      // Get the method symbol from the struct's methods map
+      const methodSym = structType.methods?.get(originalName);
+      if (!methodSym) {
+        throw new Error(`Method ${originalName} not found in struct ${structName}`);
+      }
+
+      // Temporarily insert the mangled function into the global symbol table
+      // so that onFn can find it
+      const tempFuncSym: FunctionSymbol = {
+        ...methodSym,
+        name: mangledName
+      };
+      this.symbolTable.insertFunction(mangledName, tempFuncSym);
+
+      // Temporarily change the function name for code generation
+      func.name = mangledName;
+      ast.visit(func, this);
+      func.name = originalName;  // Restore original name
+
+      // Note: We don't remove the mangled function from the symbol table
+      // because it might be referenced later in the code
+    }
+
+    return null;
+  }
+
+  /**
+   * Visit a cast expression (expr as Type).
+   */
+  onCastExpr(node: ast.CastExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    // Get the source expression value
+    const srcValue = ast.visit(node.expr, this)!;
+
+    // Get the source and target types
+    // For cast expressions, the type of the expression is the target type
+    const srcType = this.analyzer.getNodeType(node.expr);
+    const targetType = this.analyzer.getNodeType(node);
+
+    if (!srcType) {
+      throw new Error("Type not found for cast expression source");
+    }
+    if (!targetType) {
+      throw new Error("Type not found for cast expression target");
+    }
+
+    const srcLlvmType = this.builder.getType(srcType);
+    const targetLlvmType = this.builder.getType(targetType);
+
+    // Generate appropriate cast instruction based on type sizes
+    let resultReg: string;
+
+    // Determine size comparison for integer casts
+    const getSize = (llvmType: string): number => {
+      if (llvmType === "i1") return 1;
+      if (llvmType === "i8") return 8;
+      if (llvmType === "i16") return 16;
+      if (llvmType === "i32") return 32;
+      if (llvmType === "i64") return 64;
+      return 32; // default
+    };
+
+    const srcSize = getSize(srcLlvmType);
+    const targetSize = getSize(targetLlvmType);
+
+    if (srcSize < targetSize) {
+      // Zero-extend to larger type
+      resultReg = this.builder.zext(srcValue.register, srcLlvmType, targetLlvmType);
+    } else if (srcSize > targetSize) {
+      // Truncate to smaller type
+      resultReg = this.builder.trunc(srcValue.register, srcLlvmType, targetLlvmType);
+    } else {
+      // Same size, use bitcast or just pass through
+      resultReg = srcValue.register;
+    }
+
+    return { register: resultReg, type: targetLlvmType, isLValue: false };
+  }
+
+  /**
+   * Visit a borrow expression (&expr or &mut expr).
+   */
+  onBorrowExpr(node: ast.BorrowExpr, _self: ast.Visitor<LLVMValue | null>): LLVMValue | null {
+    // For simple variable references (PathExpr), get the alloca address directly
+    if (node.expr.kind === ast.ASTType.PathExpr) {
+      const varName = (node.expr as ast.PathExpr).segs[0]!;
+      const alloc = this.builder.getAllocation(varName);
+      if (alloc) {
+        // Return the alloca address as a pointer
+        return { register: alloc.allocaRegister, type: "ptr", isLValue: false };
+      }
+    }
+
+    // For field access (FieldExpr), get the alloca address
+    if (node.expr.kind === ast.ASTType.FieldExpr) {
+      const fieldExpr = node.expr as ast.FieldExpr;
+      const objectType = this.analyzer.getNodeType(fieldExpr.object);
+      if (!objectType || objectType.kind !== "structType") {
+        throw new Error("Field access requires struct type");
+      }
+
+      // Find the field index
+      const fieldNames = Array.from(objectType.fields.keys());
+      const fieldIndex = fieldNames.indexOf(fieldExpr.field);
+      if (fieldIndex === -1) {
+        throw new Error(`Field ${fieldExpr.field} not found in struct`);
+      }
+
+      // Get the object's address
+      let objPtr: string;
+      let objLlvmType: string;
+
+      if (fieldExpr.object.kind === ast.ASTType.PathExpr) {
+        const varName = (fieldExpr.object as ast.PathExpr).segs[0]!;
+        const alloc = this.builder.getAllocation(varName);
+        if (!alloc) {
+          throw new Error(`Variable ${varName} not allocated`);
+        }
+        objPtr = alloc.allocaRegister;
+        objLlvmType = alloc.type;
+
+        // Special case for self parameter
+        if (varName === "self" && alloc.type === "ptr") {
+          const loadedPtr = this.builder.freshRegister();
+          this.builder.emitInstruction(`${loadedPtr} = load ptr, ptr ${objPtr}`);
+          objPtr = loadedPtr;
+          objLlvmType = this.builder.getType(objectType);
+        }
+      } else {
+        throw new Error("Complex field access not supported for borrow");
+      }
+
+      // GEP to get field address
+      const gepReg = this.builder.getelementptr(
+        objLlvmType,
+        objPtr,
+        [
+          { value: "0", type: "i32" },
+          { value: fieldIndex.toString(), type: "i32" }
+        ]
+      );
+
+      // Return the field address as a pointer
+      return { register: gepReg, type: "ptr", isLValue: false };
+    }
+
+    // For other expressions, visit and handle
+    const innerValue = ast.visit(node.expr, this)!;
+
+    // For lvalues (struct expressions, etc.), the register is already an address
+    if (innerValue.isLValue) {
+      // Return the address directly
+      return { register: innerValue.register, type: "ptr", isLValue: false };
+    } else {
+      // For rvalues, we need to allocate temporary storage and store the value
+      const tempReg = this.builder.freshRegister();
+      this.builder.emitInstruction(`${tempReg} = alloca ${innerValue.type}`);
+      this.builder.emitInstruction(`store ${innerValue.type} ${innerValue.register}, ptr ${tempReg}`);
+
+      return { register: tempReg, type: "ptr", isLValue: false };
+    }
   }
 
   /**

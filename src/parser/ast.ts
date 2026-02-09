@@ -360,11 +360,13 @@ export interface Visitor<R = void> {
     onIf?(node: NodeByKind<ASTType.IfExpr>, self: Visitor<R>): R
     onCrate?(node: NodeByKind<ASTType.Crate>, self: Visitor<R>): R
     onConst?(node: NodeByKind<ASTType.ConstItem>, self: Visitor<R>): R
+    onStruct?(node: NodeByKind<ASTType.StructItem>, self: Visitor<R>): R
     onExprStatement?(node: NodeByKind<ASTType.ExprStatement>, self: Visitor<R>): R
     onReturnExpr?(node: NodeByKind<ASTType.ReturnExpr>, self: Visitor<R>): R
     onBreakExpr?(node: NodeByKind<ASTType.BreakExpr>, self: Visitor<R>): R
     onContinueExpr?(node: NodeByKind<ASTType.ContinueExpr>, self: Visitor<R>): R
     onCastExpr?(node: NodeByKind<ASTType.CastExpr>, self: Visitor<R>): R
+    onBorrowExpr?(node: NodeByKind<ASTType.BorrowExpr>, self: Visitor<R>): R
     onStructExpr?(node: NodeByKind<ASTType.StructExpr>, self: Visitor<R>): R
     onFieldExpr?(node: NodeByKind<ASTType.FieldExpr>, self: Visitor<R>): R
     onImpl?(node: NodeByKind<ASTType.InherentImpl>, self: Visitor<R>): R
@@ -407,6 +409,8 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return (visitor.onCrate || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.ConstItem:
       return (visitor.onConst || visitor.default)?.call?.(visitor, node, visitor)
+    case ASTType.StructItem:
+      return (visitor.onStruct || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.ExprStatement:
       return (visitor.onExprStatement || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.ReturnExpr:
@@ -417,6 +421,8 @@ export function visit<R = void>(node: ASTNode, visitor: Visitor<R>): R | undefin
       return (visitor.onContinueExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.CastExpr:
       return (visitor.onCastExpr || visitor.default)?.call?.(visitor, node, visitor)
+    case ASTType.BorrowExpr:
+      return (visitor.onBorrowExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.StructExpr:
       return (visitor.onStructExpr || visitor.default)?.call?.(visitor, node, visitor)
     case ASTType.FieldExpr:
@@ -456,6 +462,7 @@ export function getChildren(node: ASTNode): ASTNode[] {
         onReturnExpr: n => n.expr ? [n.expr] : [],
         onBreakExpr: n => n.expr ? [n.expr] : [],
         onCastExpr: n => [n.expr, n.targetType],
+        onBorrowExpr: n => [n.expr],
         onStructExpr: n => [n.path, ...n.fields.map(f => f.value)],
         onFieldExpr: n => [n.object],
         onImpl: n => [n.type, ...n.const, ...n.fn],
