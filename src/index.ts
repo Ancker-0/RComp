@@ -48,7 +48,7 @@ async function readStdinAll(): Promise<string> {
 
     const log = (...args: any[]) => {
         const inspected = args.map(a => util.inspect(a, { depth: null, colors: true }))
-        console.log(...inspected)
+        console.error(...inspected)
     }
 
     // log(block({ token: tokens, start: 0 }))
@@ -58,10 +58,10 @@ async function readStdinAll(): Promise<string> {
 
       // 检查是否解析了所有 tokens
       if (info.start < info.token.length) {
-        console.log(`Warning: Only parsed ${info.start} of ${info.token.length} tokens`);
-        console.log(`Remaining tokens starting at:`, info.token.slice(info.start, info.start + 5));
+        console.error(`Warning: Only parsed ${info.start} of ${info.token.length} tokens`);
+        console.error(`Remaining tokens starting at:`, info.token.slice(info.start, info.start + 5));
       } else {
-        console.log(`Successfully parsed all ${info.token.length} tokens`);
+        console.error(`Successfully parsed all ${info.token.length} tokens`);
       }
 
       // log("Parsed AST:", crateNode);
@@ -72,25 +72,24 @@ async function readStdinAll(): Promise<string> {
       const result = analyzer.analyze(crateNode);
 
       // 输出语义分析结果
-      console.log("\n=== Semantic Analysis Results ===");
+      console.error("\n=== Semantic Analysis Results ===");
       if (result.errors.length > 0) {
-        console.log(`Found ${result.errors.length} error(s):`);
+        console.error(`Found ${result.errors.length} error(s):`);
         for (const error of result.errors) {
-          console.log(`  - ${error.message}`);
+          console.error(`  - ${error.message}`);
         }
         process.exit(1)
       } else {
-        console.log("✓ No semantic errors found");
+        console.error("✓ No semantic errors found");
       }
 
-      // 生成 LLVM IR
-      console.log("\n=== Generating LLVM IR ===");
+      // 生成 LLVM IR (only output to stdout)
       const codegen = new CodeGenerator(analyzer);
       const llvmIR = codegen.generate(crateNode);
       console.log(llvmIR);
     } else {
-      console.log("Parse failed!");
-      console.log("First 10 tokens:");
+      console.error("Parse failed!");
+      console.error("First 10 tokens:");
       log(tokens.slice(0, 10))
       process.exit(1)
     }

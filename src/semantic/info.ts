@@ -299,6 +299,12 @@ export class SymbolTableImpl implements SymbolTable {
       params: [],
       returnType: i32Type(),
     })
+    this.globalScope.functions.set("exit", {
+      UUID: genUUID(),
+      name: "exit",
+      params: [i32Type()],
+      returnType: unitType(),
+    })
   }
 
   // 获取当前作用域

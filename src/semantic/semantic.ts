@@ -55,7 +55,19 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
 
   // 获取 AST 节点的类型（用于代码生成）
   getNodeType(node: ast.ASTNode): Type | undefined {
-    return this.nodeTypes.get(node);
+    let result = this.nodeTypes.get(node);
+    if (!result) {
+      // Fallback: check if the node has an evaluated type
+      // This can happen if the parser creates different object instances for the same AST node
+      if ("evaluated" in node && node.evaluated && node.evaluated.type) {
+        result = node.evaluated.type;
+      } else if (node.kind === ast.ASTType.IndexExpr) {
+        console.error(`[DEBUG getNodeType] IndexExpr ${(node as any).__debug_id || 'unknown'} not found in nodeTypes`);
+        console.error(`[DEBUG getNodeType] nodeTypes.size = ${this.nodeTypes.size}`);
+        console.error(`[DEBUG getNodeType] node.evaluated =`, (node as any).evaluated);
+      }
+    }
+    return result;
   }
 
   // 报告错误
@@ -335,8 +347,6 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
       this.ctrl.onFnPre(node)
       const info = this.ctrl.ask(node) as CtrlFn | undefined
       if (node.name == "main" && info && info.parent && this.ctrl.ask(info.parent)?.kind == "crate") {
-        this.symbolTable.insertFunction("exit", this.exitFunction)
-
         // 标记 main 函数（供代码生成使用）
         const funcSym = this.symbolTable.lookupFunction(node.name)
         if (funcSym) {
@@ -624,6 +634,16 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     // 处理重复数组的值和重复次数
     this.visit(node.val, self);
     this.visit(node.repeat, self);
+
+    // Set nodeTypes for the RepeatArrayExpr so code generator can use it
+    const sz = this.evaluateExpr(node.repeat);
+    if (sz && typeof sz.value === 'number' && sz.value as number >= 0) {
+      this.nodeTypes.set(node, {
+        kind: "arrayType",
+        type: this.inferExprType(node.val),
+        size: sz.value as number,
+      });
+    }
   }
   
   onIndexExpr(node: ast.NodeByKind<ast.ASTType.IndexExpr>, self: ast.Visitor<void>): void {
@@ -632,7 +652,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     this.visit(node.idx, self);
 
     // 推断索引表达式的类型（返回数组元素类型）
-    const arrayType = this.inferExprType(node.arr);
+    // Use autoDeref to handle reference types (e.g., &mut [T; N])
+    const arrayType = this.autoDeref(this.inferExprType(node.arr), x => x.kind === "arrayType");
     const idxType = this.inferExprType(node.idx)
     if (!this.typeCastable(usizeType(), idxType))
       this.reportError(`Array cannot be indexed by ${this.typeToString(idxType)}`)
@@ -642,6 +663,12 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
         type: arrayType.type,
         value: undefined
       };
+      // Also set nodeTypes for code generator
+      this.nodeTypes.set(node, arrayType.type);
+      // DEBUG: Store node ID for debugging
+      (node as any).__debug_id = `IndexExpr_${this.nodeTypes.size}`;
+      // DEBUG
+      console.error(`[DEBUG onIndexExpr] set nodeTypes for ${(node as any).__debug_id}, size = ${this.nodeTypes.size}`);
       // this.log(`Set IndexExpr evaluated type:`, node.evaluated.type);
     }
   }
@@ -1182,6 +1209,8 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
           type: fieldType,
           value: undefined
         };
+        // Also set nodeTypes for code generator
+        this.nodeTypes.set(node, fieldType);
       } else {
         this.reportError(`Unknown field '${node.field}' for struct type`, node);
       }
@@ -1212,6 +1241,17 @@ export class SemanticAnalyzer implements ast.Visitor<void> {
     };
     this.nodeTypes.set(node, borrowType);
   }
+
+  onCastExpr(node: ast.NodeByKind<ast.ASTType.CastExpr>, self: ast.Visitor<void>): void {
+    // Visit the expression being cast
+    this.visit(node.expr, self);
+
+    // The type of the cast expression is the target type
+    // Convert parser Type to semantic Type
+    const targetType = this.analyzeType(node.targetType);
+    this.nodeTypes.set(node, targetType);
+  }
+
   onBinaryExpr(node: ast.NodeByKind<ast.ASTType.BinaryExpr>, self: ast.Visitor<void>): void {
     // 先处理子节点，确保类型信息已经推断
     ast.walk(node, self);
